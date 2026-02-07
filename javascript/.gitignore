@@ -1,0 +1,18 @@
+# Node dependencies
+/node_modules/
+/.npm/
+/.pnpm-store/
+/.yarn/
+/.yarn-cache/
+/.yarn-unplugged/
+/.yarn-state.yml
+/.cache/
+/.parcel-cache/
+
+# Builds
+/dist/
+/build/
+/coverage/
+/.out/
+/.next/
+/.turbo/

@@ -51,9 +51,8 @@
 //! - Files are 3-7 GB each
 //! - Stream instead of downloading entirely when possible
 
-use aws_sdk_s3::{primitives::ByteStream, Client};
-use std::io::{BufRead, BufReader};
-use tokio_stream::StreamExt;
+use aws_sdk_s3::Client;
+use std::io::{BufRead, BufReader, Cursor};
 
 const S3_BUCKET: &str = "hl-mainnet-node-data";
 const BLOCKS_PREFIX: &str = "replica_cmds";
@@ -115,25 +114,21 @@ pub async fn list_s3(client: &Client, prefix: &str) -> Result<Vec<String>, aws_s
     let mut items = Vec::new();
 
     // Directories
-    if let Some(prefixes) = result.common_prefixes() {
-        for p in prefixes {
-            if let Some(prefix_str) = p.prefix() {
-                let name = prefix_str.trim_start_matches(prefix).trim_end_matches('/');
-                if !name.is_empty() {
-                    items.push(name.to_string());
-                }
+    for p in result.common_prefixes() {
+        if let Some(prefix_str) = p.prefix() {
+            let name = prefix_str.trim_start_matches(prefix).trim_end_matches('/');
+            if !name.is_empty() {
+                items.push(name.to_string());
             }
         }
     }
 
     // Files
-    if let Some(contents) = result.contents() {
-        for obj in contents {
-            if let Some(key) = obj.key() {
-                let name = key.trim_start_matches(prefix);
-                if !name.is_empty() {
-                    items.push(name.to_string());
-                }
+    for obj in result.contents() {
+        if let Some(key) = obj.key() {
+            let name = key.trim_start_matches(prefix);
+            if !name.is_empty() {
+                items.push(name.to_string());
             }
         }
     }
@@ -152,9 +147,12 @@ pub async fn find_block_file(client: &Client, target_block: u64) -> Option<Block
         .ok()?;
 
     for date in dates {
-        let files = list_s3(client, &format!("{}/{}/{}/", BLOCKS_PREFIX, checkpoint, date))
-            .await
-            .ok()?;
+        let files = list_s3(
+            client,
+            &format!("{}/{}/{}/", BLOCKS_PREFIX, checkpoint, date),
+        )
+        .await
+        .ok()?;
 
         for file in files {
             let key = format!("{}/{}/{}/{}", BLOCKS_PREFIX, checkpoint, date, file);
@@ -187,8 +185,14 @@ pub async fn stream_blocks(
 
     if let Ok(output) = result {
         // Note: In production, use async streaming. This is simplified for example.
-        let body = output.body.collect().await.unwrap_or_default();
-        let reader = BufReader::new(body.as_ref());
+        let body = match output.body.collect().await {
+            Ok(aggregated) => aggregated.into_bytes(),
+            Err(err) => {
+                eprintln!("Failed to read S3 body: {}", err);
+                return blocks.into_iter();
+            }
+        };
+        let reader = BufReader::new(Cursor::new(body));
 
         for (line_number, line) in reader.lines().enumerate() {
             if let Ok(line) = line {
