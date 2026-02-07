@@ -53,7 +53,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     tx.send(SubscribeRequest {
-        request: Some(hyperliquid::subscribe_request::Request::Subscribe(subscribe)),
+        request: Some(hyperliquid::subscribe_request::Request::Subscribe(
+            subscribe,
+        )),
     })
     .await?;
 
@@ -84,7 +86,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     while let Some(response) = stream.message().await? {
         if let Some(hyperliquid::subscribe_update::Update::Data(data)) = response.update {
-            let decompressed = decompress(&data.data)?;
+            let decompressed = decompress(data.data.as_bytes())?;
             if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&decompressed) {
                 println!("Block {}:", data.block_number);
                 println!("{}", serde_json::to_string_pretty(&parsed)?);

@@ -93,7 +93,9 @@ async fn stream_data(
 
     // Send subscription
     tx.send(SubscribeRequest {
-        request: Some(hyperliquid::subscribe_request::Request::Subscribe(subscribe)),
+        request: Some(hyperliquid::subscribe_request::Request::Subscribe(
+            subscribe,
+        )),
     })
     .await?;
 
@@ -127,7 +129,7 @@ async fn stream_data(
         if let Some(update) = response.update {
             match update {
                 hyperliquid::subscribe_update::Update::Data(data) => {
-                    let decompressed = decompress(&data.data)?;
+                    let decompressed = decompress(data.data.as_bytes())?;
 
                     match serde_json::from_str::<serde_json::Value>(&decompressed) {
                         Ok(parsed) => {
