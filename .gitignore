@@ -17,3 +17,25 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# Generated proto files
+*_pb2.py
+*_pb2_grpc.py
+
+# Node
+node_modules/
+package-lock.json
+
+# Rust
+target/
+
+# Archives
+*.zip
+*.tar.gz

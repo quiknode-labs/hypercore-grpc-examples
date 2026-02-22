@@ -15,6 +15,10 @@ path = "src/grpcFilterExample/filter_example.rs"
 name = "s3_blocks_backfill"
 path = "src/replicaCmdsOnS3Example/s3_blocks_backfill.rs"
 
+[[bin]]
+name = "orderbookStreamExample"
+path = "src/orderbookStreamExample/orderbook_stream_example.rs"
+
 [dependencies]
 tokio = { version = "1.35", features = ["full"] }
 tokio-stream = "0.1"
