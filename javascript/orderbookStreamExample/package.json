@@ -1,0 +1,17 @@
+{
+  "name": "orderbook-stream-example",
+  "version": "1.0.0",
+  "description": "Stream Hyperliquid L2/L4 orderbook data via gRPC",
+  "main": "orderbook_stream_example.js",
+  "scripts": {
+    "start": "node orderbook_stream_example.js",
+    "l2": "node orderbook_stream_example.js --mode=l2 --coin=BTC",
+    "l4": "node orderbook_stream_example.js --mode=l4 --coin=BTC"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.9.0",
+    "@grpc/proto-loader": "^0.7.0"
+  },
+  "author": "",
+  "license": "MIT"
+}
