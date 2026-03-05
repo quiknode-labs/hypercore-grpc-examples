@@ -14,6 +14,9 @@ Usage:
     # Stream L2 orderbook for BTC
     python orderbook_stream_example.py --mode l2 --coin BTC
 
+    # Stream L2 with price bucketing (merges nearby levels to reduce data)
+    python orderbook_stream_example.py --mode l2 --coin BTC --sig-figs 5 --mantissa 1
+
     # Stream L4 orderbook for ETH
     python orderbook_stream_example.py --mode l4 --coin ETH
 
@@ -56,6 +59,10 @@ def stream_l2_orderbook(coin: str, n_levels: int = 20, n_sig_figs: Optional[int]
     print(f"\n{'='*60}")
     print(f"Streaming L2 Orderbook for {coin}")
     print(f"Levels: {n_levels}")
+    if n_sig_figs is not None:
+        print(f"Sig Figs: {n_sig_figs}")
+    if mantissa is not None:
+        print(f"Mantissa: {mantissa}")
     print(f"Auto-reconnect: {auto_reconnect}")
     print(f"{'='*60}\n")
 
@@ -325,6 +332,10 @@ def main():
                         help='Coin symbol(s) to stream (comma-separated for multiple)')
     parser.add_argument('--levels', type=int, default=20,
                         help='Number of price levels for L2 (default: 20, max: 100)')
+    parser.add_argument('--sig-figs', type=int, default=None,
+                        help='Significant figures for L2 price bucketing (2-5). Merges nearby price levels to reduce data.')
+    parser.add_argument('--mantissa', type=int, default=None,
+                        help='Mantissa for L2 price bucketing (1, 2, or 5). Controls bucket width multiplier.')
     parser.add_argument('--max-messages', type=int, default=None,
                         help='Maximum number of messages to receive (L4 only)')
 
@@ -340,7 +351,7 @@ def main():
     try:
         if args.mode == 'l2':
             if len(coins) == 1:
-                stream_l2_orderbook(coins[0], n_levels=args.levels)
+                stream_l2_orderbook(coins[0], n_levels=args.levels, n_sig_figs=args.sig_figs, mantissa=args.mantissa)
             else:
                 print("Error: L2 mode only supports single coin. Use --mode both for multiple coins.")
                 sys.exit(1)

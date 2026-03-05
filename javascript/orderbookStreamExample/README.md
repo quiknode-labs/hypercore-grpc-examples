@@ -19,6 +19,9 @@ node orderbook_stream_example.js --mode=l2 --coin=BTC
 # ETH with 50 levels
 node orderbook_stream_example.js --mode=l2 --coin=ETH --levels=50
 
+# With price bucketing (merges nearby price levels to reduce data)
+node orderbook_stream_example.js --mode=l2 --coin=BTC --sig-figs=5 --mantissa=1
+
 # Or use npm scripts
 npm run l2
 ```
@@ -38,6 +41,8 @@ npm run l4
 - `--mode=<l2|l4>`: Streaming mode
 - `--coin=<COIN>`: Coin symbol to stream
 - `--levels=<N>`: Number of price levels for L2 (default: 20)
+- `--sig-figs=<N>`: Significant figures for L2 price bucketing (2-5)
+- `--mantissa=<N>`: Mantissa for L2 price bucketing (1, 2, or 5)
 
 ## Auto-Reconnect
 

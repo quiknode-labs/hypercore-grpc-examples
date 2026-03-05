@@ -25,10 +25,12 @@ function createClient() {
 }
 
 // Stream L2 (aggregated) orderbook
-async function streamL2Orderbook(coin, nLevels = 20, autoReconnect = true) {
+async function streamL2Orderbook(coin, nLevels = 20, nSigFigs = null, mantissa = null, autoReconnect = true) {
   console.log('='.repeat(60));
   console.log(`Streaming L2 Orderbook for ${coin}`);
   console.log(`Levels: ${nLevels}`);
+  if (nSigFigs !== null) console.log(`Sig Figs: ${nSigFigs}`);
+  if (mantissa !== null) console.log(`Mantissa: ${mantissa}`);
   console.log(`Auto-reconnect: ${autoReconnect}`);
   console.log('='.repeat(60) + '\n');
 
@@ -45,6 +47,8 @@ async function streamL2Orderbook(coin, nLevels = 20, autoReconnect = true) {
       coin: coin,
       n_levels: nLevels
     };
+    if (nSigFigs !== null) request.n_sig_figs = nSigFigs;
+    if (mantissa !== null) request.mantissa = mantissa;
 
     try {
       if (retryCount > 0) {
@@ -105,7 +109,7 @@ async function streamL2Orderbook(coin, nLevels = 20, autoReconnect = true) {
           if (retryCount < maxRetries) {
             const delay = baseDelay * Math.pow(2, retryCount - 1);
             console.log(`⏳ Waiting ${delay / 1000}s before reconnecting...`);
-            setTimeout(() => streamL2Orderbook(coin, nLevels, autoReconnect), delay);
+            setTimeout(() => streamL2Orderbook(coin, nLevels, nSigFigs, mantissa, autoReconnect), delay);
           } else {
             console.log(`\n❌ Max retries (${maxRetries}) reached. Giving up.`);
           }
@@ -266,6 +270,10 @@ const args = process.argv.slice(2);
 const mode = args.find(a => a.startsWith('--mode='))?.split('=')[1] || 'l2';
 const coin = args.find(a => a.startsWith('--coin='))?.split('=')[1] || 'BTC';
 const levels = parseInt(args.find(a => a.startsWith('--levels='))?.split('=')[1]) || 20;
+const sigFigsArg = args.find(a => a.startsWith('--sig-figs='))?.split('=')[1];
+const mantissaArg = args.find(a => a.startsWith('--mantissa='))?.split('=')[1];
+const sigFigs = sigFigsArg ? parseInt(sigFigsArg) : null;
+const mantissaParsed = mantissaArg ? parseInt(mantissaArg) : null;
 
 console.log('\n' + '='.repeat(60));
 console.log('Hyperliquid Orderbook Stream Example');
@@ -273,7 +281,7 @@ console.log(`Endpoint: ${GRPC_ENDPOINT}`);
 console.log('='.repeat(60));
 
 if (mode === 'l2') {
-  streamL2Orderbook(coin, levels);
+  streamL2Orderbook(coin, levels, sigFigs, mantissaParsed);
 } else if (mode === 'l4') {
   streamL4Orderbook(coin);
 } else {

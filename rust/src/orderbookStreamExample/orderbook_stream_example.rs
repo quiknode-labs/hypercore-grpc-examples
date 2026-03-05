@@ -15,10 +15,16 @@ const AUTH_TOKEN: &str = "your-auth-token";
 const MAX_RETRIES: usize = 10;
 const BASE_DELAY_SECS: u64 = 2;
 
-async fn stream_l2_orderbook(coin: &str, n_levels: u32) -> Result<(), Box<dyn std::error::Error>> {
+async fn stream_l2_orderbook(coin: &str, n_levels: u32, n_sig_figs: Option<u32>, mantissa: Option<u64>) -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", "=".repeat(60));
     println!("Streaming L2 Orderbook for {}", coin);
     println!("Levels: {}", n_levels);
+    if let Some(nsf) = n_sig_figs {
+        println!("Sig Figs: {}", nsf);
+    }
+    if let Some(m) = mantissa {
+        println!("Mantissa: {}", m);
+    }
     println!("Auto-reconnect: true");
     println!("{}\n", "=".repeat(60));
 
@@ -35,8 +41,8 @@ async fn stream_l2_orderbook(coin: &str, n_levels: u32) -> Result<(), Box<dyn st
         let request = L2BookRequest {
             coin: coin.to_string(),
             n_levels,
-            n_sig_figs: None,
-            mantissa: None,
+            n_sig_figs,
+            mantissa,
         };
 
         if retry_count > 0 {
@@ -303,6 +309,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut mode = "l2";
     let mut coin = "BTC";
     let mut levels = 20u32;
+    let mut n_sig_figs: Option<u32> = None;
+    let mut mantissa: Option<u64> = None;
     let mut max_messages: Option<usize> = None;
 
     // Parse args
@@ -313,6 +321,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             coin = value;
         } else if let Some(value) = arg.strip_prefix("--levels=") {
             levels = value.parse().unwrap_or(20);
+        } else if let Some(value) = arg.strip_prefix("--sig-figs=") {
+            n_sig_figs = value.parse().ok();
+        } else if let Some(value) = arg.strip_prefix("--mantissa=") {
+            mantissa = value.parse().ok();
         } else if let Some(value) = arg.strip_prefix("--max-messages=") {
             max_messages = Some(value.parse().unwrap_or(0));
         }
@@ -324,7 +336,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", "=".repeat(60));
 
     match mode {
-        "l2" => stream_l2_orderbook(coin, levels).await,
+        "l2" => stream_l2_orderbook(coin, levels, n_sig_figs, mantissa).await,
         "l4" => stream_l4_orderbook(coin, max_messages).await,
         _ => {
             eprintln!("Invalid mode. Use --mode=l2 or --mode=l4");

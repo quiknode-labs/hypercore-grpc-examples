@@ -21,6 +21,9 @@ go run orderbook_stream_example.go -mode=l2 -coin=BTC
 
 # ETH with 50 levels
 go run orderbook_stream_example.go -mode=l2 -coin=ETH -levels=50
+
+# With price bucketing (merges nearby price levels to reduce data)
+go run orderbook_stream_example.go -mode=l2 -coin=BTC -sig-figs=5 -mantissa=1
 ```
 
 ### Stream L4 Orderbook (Individual Orders)
@@ -38,6 +41,8 @@ go run orderbook_stream_example.go -mode=l4 -coin=ETH -max-messages=100
 - `-mode=<l2|l4>`: Streaming mode
 - `-coin=<COIN>`: Coin symbol to stream
 - `-levels=<N>`: Number of price levels for L2 (default: 20)
+- `-sig-figs=<N>`: Significant figures for L2 price bucketing (2-5, 0 = disabled)
+- `-mantissa=<N>`: Mantissa for L2 price bucketing (1, 2, or 5, 0 = disabled)
 - `-max-messages=<N>`: Maximum messages for L4 (0 = unlimited)
 
 ## Auto-Reconnect
