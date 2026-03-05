@@ -28,10 +28,16 @@ const (
 	baseDelay    = 2 * time.Second
 )
 
-func streamL2Orderbook(coin string, nLevels uint32) error {
+func streamL2Orderbook(coin string, nLevels uint32, nSigFigs *uint32, mantissa *uint64) error {
 	fmt.Println(strings.Repeat("=", 60))
 	fmt.Printf("Streaming L2 Orderbook for %s\n", coin)
 	fmt.Printf("Levels: %d\n", nLevels)
+	if nSigFigs != nil {
+		fmt.Printf("Sig Figs: %d\n", *nSigFigs)
+	}
+	if mantissa != nil {
+		fmt.Printf("Mantissa: %d\n", *mantissa)
+	}
 	fmt.Println("Auto-reconnect: true")
 	fmt.Println(strings.Repeat("=", 60) + "\n")
 
@@ -50,8 +56,10 @@ func streamL2Orderbook(coin string, nLevels uint32) error {
 		ctx := metadata.AppendToOutgoingContext(context.Background(), "x-token", authToken)
 
 		request := &pb.L2BookRequest{
-			Coin:    coin,
-			NLevels: nLevels,
+			Coin:     coin,
+			NLevels:  nLevels,
+			NSigFigs: nSigFigs,
+			Mantissa: mantissa,
 		}
 
 		if retryCount > 0 {
@@ -320,6 +328,8 @@ func main() {
 	mode := flag.String("mode", "l2", "Streaming mode: l2 or l4")
 	coin := flag.String("coin", "BTC", "Coin symbol to stream")
 	levels := flag.Uint("levels", 20, "Number of price levels for L2")
+	sigFigs := flag.Uint("sig-figs", 0, "Significant figures for L2 price bucketing (2-5, 0 = disabled)")
+	mantissaFlag := flag.Uint64("mantissa", 0, "Mantissa for L2 price bucketing (1, 2, or 5, 0 = disabled)")
 	maxMessages := flag.Int("max-messages", 0, "Maximum messages for L4 (0 = unlimited)")
 
 	flag.Parse()
@@ -329,9 +339,20 @@ func main() {
 	fmt.Printf("Endpoint: %s\n", grpcEndpoint)
 	fmt.Println(strings.Repeat("=", 60))
 
+	// Convert optional flags to pointers (nil if not set)
+	var nSigFigs *uint32
+	if *sigFigs > 0 {
+		v := uint32(*sigFigs)
+		nSigFigs = &v
+	}
+	var mantissaVal *uint64
+	if *mantissaFlag > 0 {
+		mantissaVal = mantissaFlag
+	}
+
 	var err error
 	if *mode == "l2" {
-		err = streamL2Orderbook(*coin, uint32(*levels))
+		err = streamL2Orderbook(*coin, uint32(*levels), nSigFigs, mantissaVal)
 	} else if *mode == "l4" {
 		err = streamL4Orderbook(*coin, *maxMessages)
 	} else {

@@ -34,8 +34,11 @@ python orderbook_stream_example.py --mode l2 --coin BTC
 # ETH with 50 levels
 python orderbook_stream_example.py --mode l2 --coin ETH --levels 50
 
-# With price bucketing
-python orderbook_stream_example.py --mode l2 --coin BTC --levels 20
+# With price bucketing (merges nearby price levels to reduce data)
+python orderbook_stream_example.py --mode l2 --coin BTC --sig-figs 5 --mantissa 1
+
+# Coarser bucketing for less data
+python orderbook_stream_example.py --mode l2 --coin BTC --sig-figs 3
 ```
 
 ### Stream L4 Orderbook (Individual Orders)
@@ -64,6 +67,8 @@ python orderbook_stream_example.py --mode both --coin BTC,ETH,SOL
 - `--mode`: Streaming mode (`l2`, `l4`, or `both`)
 - `--coin`: Coin symbol(s) to stream (comma-separated for multiple)
 - `--levels`: Number of price levels for L2 (default: 20, max: 100)
+- `--sig-figs`: Significant figures for L2 price bucketing (2-5). Merges nearby price levels into coarser buckets to reduce data. Lower values = more aggressive merging.
+- `--mantissa`: Mantissa for L2 price bucketing (1, 2, or 5). Controls bucket width multiplier — higher values create wider buckets.
 - `--max-messages`: Maximum number of messages to receive (L4 only)
 
 ## Output
