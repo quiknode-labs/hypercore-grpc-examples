@@ -13,17 +13,29 @@ gRPC streaming examples for Hyperliquid with zstd compression support.
 
 The proto definition is in `proto/hyperliquid.proto`.
 
+## Networks
+
+Both **mainnet** and **testnet** are supported. Set your `GRPC_ENDPOINT` accordingly:
+
+| Network | Endpoint Format |
+|---------|----------------|
+| Mainnet | `your-endpoint.hype-mainnet.quiknode.pro:10000` |
+| Testnet | `your-endpoint.hype-testnet.quiknode.pro:10000` |
+
+All stream types are available on both networks, except `MEMPOOL_TXS` which is **testnet-only**.
+
 ## Stream Types
 
-| Type | Description |
-|------|-------------|
-| `TRADES` | Trade executions |
-| `ORDERS` | Order updates |
-| `EVENTS` | General events |
-| `BOOK_UPDATES` | Order book changes |
-| `TWAP` | TWAP orders |
-| `BLOCKS` | Raw blocks |
-| `WRITER_ACTIONS` | Writer actions |
+| Type | Description | Networks |
+|------|-------------|----------|
+| `TRADES` | Trade executions | Mainnet, Testnet |
+| `ORDERS` | Order updates | Mainnet, Testnet |
+| `EVENTS` | General events | Mainnet, Testnet |
+| `BOOK_UPDATES` | Order book changes | Mainnet, Testnet |
+| `TWAP` | TWAP orders | Mainnet, Testnet |
+| `BLOCKS` | Raw blocks | Mainnet, Testnet |
+| `WRITER_ACTIONS` | Writer actions | Mainnet, Testnet |
+| `MEMPOOL_TXS` | Mempool transactions | Testnet only |
 
 ## Filtering
 
@@ -126,7 +138,7 @@ cargo run -- -s TRADES
 
 Each example requires:
 
-1. **GRPC_ENDPOINT** - Your QuickNode endpoint (e.g., `your-endpoint.hype-mainnet.quiknode.pro:10000`)
+1. **GRPC_ENDPOINT** - Your QuickNode endpoint (e.g., `your-endpoint.hype-mainnet.quiknode.pro:10000` or `your-endpoint.hype-testnet.quiknode.pro:10000`)
 2. **AUTH_TOKEN** - Your authentication token
 
 ### Connection Requirements

@@ -15,6 +15,8 @@ use hyperliquid::{
 };
 
 // Configuration
+// Mainnet: "https://your-endpoint.hype-mainnet.quiknode.pro:10000"
+// Testnet: "https://your-endpoint.hype-testnet.quiknode.pro:10000"
 const GRPC_ENDPOINT: &str = "https://your-endpoint.hype-mainnet.quiknode.pro:10000";
 const AUTH_TOKEN: &str = "your-auth-token";
 
@@ -55,6 +57,7 @@ fn parse_stream_type(s: &str) -> StreamType {
         "TWAP" => StreamType::Twap,
         "BLOCKS" => StreamType::Blocks,
         "WRITER_ACTIONS" => StreamType::WriterActions,
+        "MEMPOOL_TXS" => StreamType::MempoolTxs, // Testnet only
         _ => StreamType::Trades,
     }
 }
