@@ -3,6 +3,8 @@ const grpc = require('@grpc/grpc-js');
 const protoLoader = require('@grpc/proto-loader');
 const path = require('path');
 
+// Mainnet: 'your-endpoint.hype-mainnet.quiknode.pro:10000'
+// Testnet: 'your-endpoint.hype-testnet.quiknode.pro:10000'
 const GRPC_ENDPOINT = 'your-endpoint.hype-mainnet.quiknode.pro:10000';
 const AUTH_TOKEN = 'your-auth-token';
 const PROTO_PATH = path.join(__dirname, '..', '..', 'proto', 'orderbook.proto');

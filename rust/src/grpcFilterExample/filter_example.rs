@@ -14,6 +14,8 @@ use hyperliquid::{
     SubscribeRequest,
 };
 
+// Mainnet: "https://your-endpoint.hype-mainnet.quiknode.pro:10000"
+// Testnet: "https://your-endpoint.hype-testnet.quiknode.pro:10000"
 const GRPC_ENDPOINT: &str = "https://your-endpoint.hype-mainnet.quiknode.pro:10000";
 const AUTH_TOKEN: &str = "your-auth-token";
 

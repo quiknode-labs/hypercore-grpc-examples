@@ -7,6 +7,8 @@ import zstandard as zstd
 import hyperliquid_pb2 as pb
 import hyperliquid_pb2_grpc as pb_grpc
 
+# Mainnet: "your-endpoint.hype-mainnet.quiknode.pro:10000"
+# Testnet: "your-endpoint.hype-testnet.quiknode.pro:10000"
 GRPC_ENDPOINT = "your-endpoint.hype-mainnet.quiknode.pro:10000"
 AUTH_TOKEN = "your-auth-token"
 

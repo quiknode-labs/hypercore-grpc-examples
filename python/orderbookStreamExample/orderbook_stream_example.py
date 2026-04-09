@@ -41,6 +41,8 @@ except ImportError:
     sys.exit(1)
 
 # Configuration
+# Mainnet: "your-endpoint.hype-mainnet.quiknode.pro:10000"
+# Testnet: "your-endpoint.hype-testnet.quiknode.pro:10000"
 GRPC_ENDPOINT = "your-endpoint.hype-mainnet.quiknode.pro:10000"
 AUTH_TOKEN = "your-auth-token"
 
