@@ -21,6 +21,8 @@ import (
 	pb "github.com/example/hyperliquid-grpc/proto"
 )
 
+// Mainnet: "your-endpoint.hype-mainnet.quiknode.pro:10000"
+// Testnet: "your-endpoint.hype-testnet.quiknode.pro:10000"
 const (
 	grpcEndpoint = "your-endpoint.hype-mainnet.quiknode.pro:10000"
 	authToken    = "your-auth-token"
