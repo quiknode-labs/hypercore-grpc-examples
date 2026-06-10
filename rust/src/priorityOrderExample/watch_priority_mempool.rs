@@ -15,6 +15,7 @@ use hyperliquid::{
 
 const DEFAULT_GRPC_ENDPOINT: &str = "https://your-endpoint.hype-testnet.quiknode.pro:10000";
 const DEFAULT_AUTH_TOKEN: &str = "YOUR_QUICKNODE_TOKEN";
+const ZSTD_MAGIC: [u8; 4] = [0x28, 0xB5, 0x2F, 0xFD];
 
 fn grpc_endpoint() -> String {
     std::env::var("GRPC_ENDPOINT").unwrap_or_else(|_| DEFAULT_GRPC_ENDPOINT.to_string())
@@ -32,6 +33,15 @@ async fn create_channel() -> Result<Channel, Box<dyn std::error::Error>> {
         .connect()
         .await?;
     Ok(channel)
+}
+
+fn decompress(data: &[u8]) -> Result<String, Box<dyn std::error::Error>> {
+    if data.len() >= 4 && data[0..4] == ZSTD_MAGIC {
+        let decompressed = zstd::decode_all(data)?;
+        return Ok(String::from_utf8(decompressed)?);
+    }
+
+    Ok(String::from_utf8_lossy(data).to_string())
 }
 
 fn priority_fees(value: &serde_json::Value) -> Vec<String> {
@@ -151,7 +161,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             continue;
         };
 
-        let text = data.data;
+        let text = decompress(data.data.as_bytes())?;
         if !matches_text_filters(&text, &args.contains) {
             continue;
         }

@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/klauspost/compress/zstd"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -25,6 +26,8 @@ const (
 	defaultGrpcEndpoint = "your-endpoint.hype-testnet.quiknode.pro:10000"
 	defaultAuthToken    = "YOUR_QUICKNODE_TOKEN"
 )
+
+var zstdMagic = []byte{0x28, 0xB5, 0x2F, 0xFD}
 
 func envOrDefault(name string, fallback string) string {
 	value := os.Getenv(name)
@@ -45,6 +48,28 @@ func createConnection(endpoint string) (*grpc.ClientConn, error) {
 			PermitWithoutStream: true,
 		}),
 	)
+}
+
+func decompress(data []byte) (string, error) {
+	if len(data) >= 4 &&
+		data[0] == zstdMagic[0] &&
+		data[1] == zstdMagic[1] &&
+		data[2] == zstdMagic[2] &&
+		data[3] == zstdMagic[3] {
+		decoder, err := zstd.NewReader(nil)
+		if err != nil {
+			return "", err
+		}
+		defer decoder.Close()
+
+		decompressed, err := decoder.DecodeAll(data, nil)
+		if err != nil {
+			return "", err
+		}
+		return string(decompressed), nil
+	}
+
+	return string(data), nil
 }
 
 func priorityFees(value interface{}) []string {
@@ -181,7 +206,11 @@ func main() {
 			continue
 		}
 
-		text := dataUpdate.Data.Data
+		text, err := decompress([]byte(dataUpdate.Data.Data))
+		if err != nil {
+			log.Printf("decompress error at block %d: %v", dataUpdate.Data.BlockNumber, err)
+			continue
+		}
 		if !matchesTextFilters(text, contains) {
 			continue
 		}

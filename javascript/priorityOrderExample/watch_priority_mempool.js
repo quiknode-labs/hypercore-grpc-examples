@@ -42,7 +42,19 @@ function parseArgs() {
 }
 
 async function decompress(data) {
-  if (typeof data === 'string') return data;
+  if (typeof data === 'string') {
+    if (
+      data.length >= 4 &&
+      data.charCodeAt(0) === 0x28 &&
+      data.charCodeAt(1) === 0xB5 &&
+      data.charCodeAt(2) === 0x2F &&
+      data.charCodeAt(3) === 0xFD
+    ) {
+      const out = await zstd.decompress(Buffer.from(data, 'latin1'));
+      return out.toString('utf8');
+    }
+    return data;
+  }
   if (!Buffer.isBuffer(data)) return String(data);
   if (data.length >= 4 && data[0] === 0x28 && data[1] === 0xB5 && data[2] === 0x2F && data[3] === 0xFD) {
     const out = await zstd.decompress(data);

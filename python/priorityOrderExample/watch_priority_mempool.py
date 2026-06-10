@@ -38,14 +38,26 @@ def env_or_default(name: str, default: str) -> str:
 GRPC_ENDPOINT = env_or_default("GRPC_ENDPOINT", DEFAULT_GRPC_ENDPOINT)
 AUTH_TOKEN = env_or_default("AUTH_TOKEN", env_or_default("QN_AUTH_TOKEN", DEFAULT_AUTH_TOKEN))
 decompressor = zstd.ZstdDecompressor()
+ZSTD_MAGIC = b"\x28\xB5\x2F\xFD"
+
+
+def string_has_zstd_magic(data: str) -> bool:
+    if len(data) < 4:
+        return False
+    try:
+        return bytes(ord(char) for char in data[:4]) == ZSTD_MAGIC
+    except ValueError:
+        return False
 
 
 def decompress(data) -> str:
     if isinstance(data, str):
+        if string_has_zstd_magic(data):
+            return decompressor.decompress(data.encode("latin-1")).decode("utf-8")
         return data
     if not data or len(data) < 4:
         return data.decode("utf-8") if isinstance(data, bytes) else str(data)
-    if data[0:4] == b"\x28\xB5\x2F\xFD":
+    if data[0:4] == ZSTD_MAGIC:
         return decompressor.decompress(data).decode("utf-8")
     return data.decode("utf-8")
 
