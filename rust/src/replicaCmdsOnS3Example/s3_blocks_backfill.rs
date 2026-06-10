@@ -37,12 +37,7 @@
 //!
 //! USAGE:
 //! ------
-//! Add to Cargo.toml:
-//!   aws-config = "1.0"
-//!   aws-sdk-s3 = "1.0"
-//!   tokio = { version = "1", features = ["full"] }
-//!
-//! cargo run --bin s3_blocks_backfill
+//! cargo run --features s3 --bin s3_blocks_backfill
 //!
 //!
 //! COST CONSIDERATIONS:

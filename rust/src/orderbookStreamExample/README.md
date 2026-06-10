@@ -1,49 +1,61 @@
 # Orderbook Stream Example (Rust)
 
-Stream real-time L2 and L4 orderbook data from Hyperliquid via gRPC.
+Stream Hyperliquid orderbook data from a hosted QuickNode gRPC endpoint.
 
 ## Setup
 
-From the `rust` directory, build the project:
+From the `rust` directory:
 
 ```bash
-cargo build --release
+export GRPC_ENDPOINT="https://your-endpoint.hype-mainnet.quiknode.pro:10000"
+export AUTH_TOKEN="YOUR_QUICKNODE_TOKEN"
 ```
 
-## Usage
-
-### Stream L2 Orderbook (Aggregated Levels)
+## Run Streams
 
 ```bash
-# Default: BTC with 20 levels
-cargo run --bin orderbookStreamExample -- --mode=l2 --coin=BTC
+# New: best bid/offer
+cargo run --bin orderbookStreamExample -- --mode=bbo --coin=BTC --max-messages=5
 
-# ETH with 50 levels
-cargo run --bin orderbookStreamExample -- --mode=l2 --coin=ETH --levels=50
+# New: L2 price-level diffs
+cargo run --bin orderbookStreamExample -- --mode=l2-diff --coin=BTC --max-messages=5
 
-# With price bucketing (merges nearby price levels to reduce data)
-cargo run --bin orderbookStreamExample -- --mode=l2 --coin=BTC --sig-figs=5 --mantissa=1
+# New: typed L4 order updates
+cargo run --bin orderbookStreamExample -- --mode=l4-updates --coin=BTC --max-messages=5
+
+# New: TP/SL trigger-order updates
+cargo run --bin orderbookStreamExample -- --mode=tpsl --coin=BTC --max-messages=5
+
+# Existing: full L2 snapshots
+cargo run --bin orderbookStreamExample -- --mode=l2 --coin=BTC --max-messages=5
+
+# Existing: full L4 snapshot plus raw diffs
+cargo run --bin orderbookStreamExample -- --mode=l4 --coin=BTC --max-messages=5
 ```
 
-### Stream L4 Orderbook (Individual Orders)
+## Multi-Coin Streams
 
 ```bash
-# Stream L4 for BTC
-cargo run --bin orderbookStreamExample -- --mode=l4 --coin=BTC
-
-# Limit to 100 messages
-cargo run --bin orderbookStreamExample -- --mode=l4 --coin=ETH --max-messages=100
+cargo run --bin orderbookStreamExample -- --mode=bbo --coin=BTC,ETH,SOL --max-messages=5
+cargo run --bin orderbookStreamExample -- --mode=bbo --all --max-messages=5
 ```
+
+`--all` works for `bbo`, `l2-diff`, `l4-updates`, and `tpsl`. For `tpsl`, `--all` means all perp coins.
 
 ## Options
 
-- `--mode=<l2|l4>`: Streaming mode
-- `--coin=<COIN>`: Coin symbol to stream
-- `--levels=<N>`: Number of price levels for L2 (default: 20)
-- `--sig-figs=<N>`: Significant figures for L2 price bucketing (2-5)
-- `--mantissa=<N>`: Mantissa for L2 price bucketing (1, 2, or 5)
-- `--max-messages=<N>`: Maximum messages for L4
+- `--mode=<l2|l4|bbo|l2-diff|l4-updates|tpsl>`
+- `--coin=<COIN[,COIN...]>`
+- `--all`
+- `--levels=<N>` for L2 and L2 diff, default `20`, max `100`
+- `--sig-figs=<N>` for L2 bucketing, `2` to `5`
+- `--mantissa=<N>` for L2 bucketing, `1`, `2`, or `5`
+- `--skip-initial-snapshot` for `l2-diff`
+- `--max-messages=<N>`
 
-## Auto-Reconnect
+## Client Notes
 
-The example includes automatic reconnection with exponential backoff when the server reinitializes (`DATA_LOSS` error). It will retry up to 10 times with delays of 2s, 4s, 8s, 16s, etc.
+- `StreamL2Book` and `StreamL2BookDiff` share the same `n_levels`, `n_sig_figs`, and `mantissa` behavior.
+- In `StreamL2BookDiff`, `sz: "0"` and `n: 0` means remove that price level.
+- In `StreamL4BookUpdates` and `StreamTpslUpdates`, `DATA_LOSS` means reconnect and rebuild from the next `snapshot=true` message.
+- Position TP/SL rows can have `sz: "0.0"` because that is what the node emits.

@@ -72,7 +72,7 @@ enum StreamType {
   EVENTS = 5;
   BLOCKS = 6;
   WRITER_ACTIONS = 7;
-  MEMPOOL_TXS = 8; // Testnet only
+  MEMPOOL_TXS = 8; // Testnet-only mempool transactions, including priority order submissions
 }
 
 message Block {

@@ -9,9 +9,11 @@ gRPC streaming examples for Hyperliquid with zstd compression support.
 - **Go** - `google.golang.org/grpc` with `klauspost/compress`
 - **Rust** - `tonic` with `zstd`
 
-## Proto File
+## Proto Files
 
-The proto definition is in `proto/hyperliquid.proto`.
+The raw stream proto definition is in `proto/hyperliquid.proto`.
+
+The dedicated orderbook streaming proto definition is in `proto/orderbook.proto`. See [Orderbook Streaming](docs/orderbook-streaming.md) for runnable examples using your QuickNode endpoint.
 
 ## Networks
 
@@ -35,7 +37,54 @@ All stream types are available on both networks, except `MEMPOOL_TXS` which is *
 | `TWAP` | TWAP orders | Mainnet, Testnet |
 | `BLOCKS` | Raw blocks | Mainnet, Testnet |
 | `WRITER_ACTIONS` | Writer actions | Mainnet, Testnet |
-| `MEMPOOL_TXS` | Mempool transactions | Testnet only |
+| `MEMPOOL_TXS` | Testnet mempool transactions, including priority order submissions | Testnet only |
+
+## Orderbook Streaming Methods
+
+The `hyperliquid.OrderBookStreaming` service exposes full-book streams plus lower-bandwidth derived streams:
+
+| Method | Description |
+|--------|-------------|
+| `StreamL2Book` | Existing full aggregated L2 snapshots for one coin |
+| `StreamL4Book` | Existing full L4 snapshot for one coin, then raw JSON diffs |
+| `StreamBboBook` | New best bid/offer updates for one or more coins |
+| `StreamL2BookDiff` | New incremental L2 price-level changes |
+| `StreamL4BookUpdates` | New typed L4 order-level changes |
+| `StreamTpslUpdates` | New typed TP/SL trigger-order lifecycle changes |
+
+Run BBO with your hosted QuickNode endpoint:
+
+```bash
+cd javascript/orderbookStreamExample
+npm install
+
+export GRPC_ENDPOINT="your-endpoint.hype-mainnet.quiknode.pro:10000"
+export AUTH_TOKEN="YOUR_QUICKNODE_TOKEN"
+
+node orderbook_stream_example.js --mode=bbo --coin=BTC --max-messages=5
+```
+
+## Testnet Priority Mempool
+
+Priority transactions can be observed on the testnet-only `MEMPOOL_TXS` stream. Each priority example starts a gRPC watcher against your QuickNode testnet endpoint and prints mempool payloads that contain priority grouping.
+
+```bash
+cd python/priorityOrderExample
+pip install -r requirements.txt
+python -m grpc_tools.protoc -I../../proto --python_out=. --grpc_python_out=. ../../proto/hyperliquid.proto
+
+export GRPC_ENDPOINT="your-endpoint.hype-testnet.quiknode.pro:10000"
+export AUTH_TOKEN="YOUR_QUICKNODE_TOKEN"
+
+python watch_priority_mempool.py --max-messages 5
+```
+
+Priority examples are available in:
+
+- `javascript/priorityOrderExample/`
+- `python/priorityOrderExample/`
+- `golang/priorityOrderExample/`
+- `rust/src/priorityOrderExample/`
 
 ## Filtering
 
