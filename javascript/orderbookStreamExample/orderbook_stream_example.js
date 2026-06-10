@@ -66,6 +66,16 @@ function validateArgs(args) {
   }
 }
 
+function coinDisplay(args) {
+  if (args.mode === 'l2' || args.mode === 'l4') {
+    return { label: 'Coin', value: args.coin };
+  }
+  return {
+    label: 'Coins',
+    value: args.coins.length ? args.coins.join(',') : 'all eligible coins'
+  };
+}
+
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -237,7 +247,8 @@ async function main() {
   console.log('Hyperliquid Orderbook Stream Example');
   console.log(`Endpoint: ${GRPC_ENDPOINT}`);
   console.log(`Mode: ${args.mode}`);
-  console.log(`Coins: ${args.coins.length ? args.coins.join(',') : 'all eligible coins'}`);
+  const display = coinDisplay(args);
+  console.log(`${display.label}: ${display.value}`);
 
   if (AUTH_TOKEN === 'your-quicknode-token') {
     console.error('Set AUTH_TOKEN to your QuickNode token before running this example.');

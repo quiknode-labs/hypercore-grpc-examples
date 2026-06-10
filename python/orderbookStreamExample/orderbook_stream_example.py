@@ -254,13 +254,20 @@ def parse_args():
     return args
 
 
+def coin_display(args) -> tuple[str, str]:
+    if args.mode in {"l2", "l4"}:
+        return "Coin", args.coin
+    return "Coins", ",".join(args.coins) if args.coins else "all eligible coins"
+
+
 def main():
     args = parse_args()
 
     print("Hyperliquid Orderbook Stream Example")
     print(f"Endpoint: {GRPC_ENDPOINT}")
     print(f"Mode: {args.mode}")
-    print(f"Coins: {','.join(args.coins) if args.coins else 'all eligible coins'}")
+    coin_label, coin_value = coin_display(args)
+    print(f"{coin_label}: {coin_value}")
 
     if AUTH_TOKEN == "your-quicknode-token":
         print("Set AUTH_TOKEN to your QuickNode token before running this example.")
