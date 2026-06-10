@@ -85,6 +85,7 @@ function l2DiffRequest(args) {
 async function consumeWithReconnect(label, makeCall, onData, maxMessages = null) {
   const maxRetries = 10;
   const baseDelayMs = 2000;
+  let msgCount = 0;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     if (attempt > 0) {
@@ -94,7 +95,6 @@ async function consumeWithReconnect(label, makeCall, onData, maxMessages = null)
     }
 
     const result = await new Promise((resolve, reject) => {
-      let msgCount = 0;
       const call = makeCall();
 
       call.on('data', (update) => {
@@ -146,7 +146,13 @@ async function streamL4(args) {
       if (update.snapshot) {
         console.log(`[${count}] L4 snapshot ${update.snapshot.coin} height=${update.snapshot.height} bids=${update.snapshot.bids.length} asks=${update.snapshot.asks.length}`);
       } else if (update.diff) {
-        const data = JSON.parse(update.diff.data);
+        let data;
+        try {
+          data = JSON.parse(update.diff.data || '{}');
+        } catch (err) {
+          console.warn(`[${count}] L4 diff height=${update.diff.height} invalid JSON: ${err.message}`);
+          return;
+        }
         console.log(`[${count}] L4 diff height=${update.diff.height} order_statuses=${(data.order_statuses || []).length} book_diffs=${(data.book_diffs || []).length}`);
       }
     },

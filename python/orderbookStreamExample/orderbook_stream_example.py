@@ -28,7 +28,6 @@ except ImportError:
     print("  python -m grpc_tools.protoc -I../../proto --python_out=. --grpc_python_out=. ../../proto/orderbook.proto")
     sys.exit(1)
 
-
 GRPC_ENDPOINT = os.environ.get("GRPC_ENDPOINT", "your-endpoint.hype-mainnet.quiknode.pro:10000")
 AUTH_TOKEN = os.environ.get("AUTH_TOKEN") or os.environ.get("QN_AUTH_TOKEN") or "your-quicknode-token"
 MAX_RETRIES = 10
@@ -91,6 +90,8 @@ def consume_with_reconnect(
     handle_update: Callable[[object, int], None],
     max_messages: Optional[int],
 ):
+    msg_count = 0
+
     for attempt in range(MAX_RETRIES + 1):
         if attempt > 0:
             delay = BASE_DELAY_SECONDS * (2 ** (attempt - 1))
@@ -99,7 +100,6 @@ def consume_with_reconnect(
 
         channel = create_channel()
         stub = pb_grpc.OrderBookStreamingStub(channel)
-        msg_count = 0
 
         try:
             for update in make_stream(stub):
@@ -144,7 +144,11 @@ def stream_l4(args):
                 f"bids={len(snapshot.bids)} asks={len(snapshot.asks)}"
             )
         elif update.HasField("diff"):
-            data = json.loads(update.diff.data)
+            try:
+                data = json.loads(update.diff.data)
+            except json.JSONDecodeError as exc:
+                print(f"[{count}] L4 diff height={update.diff.height} invalid JSON: {exc}")
+                return
             print(
                 f"[{count}] L4 diff height={update.diff.height} "
                 f"order_statuses={len(data.get('order_statuses', []))} "

@@ -639,10 +639,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let coins = split_coins(coin, all);
+    let single_coin = coins.first().map(String::as_str).unwrap_or("BTC");
 
     match mode {
-        "l2" => stream_l2_orderbook(coin, levels, n_sig_figs, mantissa).await,
-        "l4" => stream_l4_orderbook(coin, max_messages).await,
+        "l2" => stream_l2_orderbook(single_coin, levels, n_sig_figs, mantissa).await,
+        "l4" => stream_l4_orderbook(single_coin, max_messages).await,
         "bbo" => stream_bbo(coins, max_messages).await,
         "l2-diff" => stream_l2_book_diff(coins, levels, n_sig_figs, mantissa, skip_initial_snapshot, max_messages).await,
         "l4-updates" => stream_l4_book_updates(coins, max_messages).await,

@@ -695,10 +695,14 @@ func main() {
 
 	var err error
 	coins := splitCoins(*coin, *allCoins)
+	singleCoin := "BTC"
+	if len(coins) > 0 {
+		singleCoin = coins[0]
+	}
 	if *mode == "l2" {
-		err = streamL2Orderbook(*coin, uint32(*levels), nSigFigs, mantissaVal)
+		err = streamL2Orderbook(singleCoin, uint32(*levels), nSigFigs, mantissaVal)
 	} else if *mode == "l4" {
-		err = streamL4Orderbook(*coin, *maxMessages)
+		err = streamL4Orderbook(singleCoin, *maxMessages)
 	} else if *mode == "bbo" {
 		err = streamBbo(coins, *maxMessages)
 	} else if *mode == "l2-diff" {
