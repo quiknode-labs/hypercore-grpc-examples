@@ -178,7 +178,7 @@ async fn stream_l2_orderbook(coin: &str, n_levels: u32, n_sig_figs: Option<u32>,
                             break;
                         } else {
                             println!("\n❌ Max retries ({}) reached. Giving up.", MAX_RETRIES);
-                            return Ok(());
+                            return Err(Box::new(status));
                         }
                     } else {
                         eprintln!("\ngRPC error: {:?}", status);
@@ -576,7 +576,7 @@ async fn stream_l4_orderbook(coin: &str, max_messages: Option<usize>) -> Result<
                             break;
                         } else {
                             println!("\n❌ Max retries ({}) reached. Giving up.", MAX_RETRIES);
-                            return Ok(());
+                            return Err(Box::new(status));
                         }
                     } else {
                         eprintln!("\ngRPC error: {:?}", status);

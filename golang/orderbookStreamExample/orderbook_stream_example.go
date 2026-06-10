@@ -147,7 +147,7 @@ func streamL2Orderbook(coin string, nLevels uint32, nSigFigs *uint32, mantissa *
 					} else {
 						fmt.Printf("\n❌ Max retries (%d) reached. Giving up.\n", maxRetries)
 						conn.Close()
-						return nil
+						return fmt.Errorf("max DATA_LOSS retries reached: %w", err)
 					}
 				}
 				conn.Close()
@@ -557,7 +557,7 @@ func streamL4Orderbook(coin string, maxMessages int) error {
 					} else {
 						fmt.Printf("\n❌ Max retries (%d) reached. Giving up.\n", maxRetries)
 						conn.Close()
-						return nil
+						return fmt.Errorf("max DATA_LOSS retries reached: %w", err)
 					}
 				}
 				conn.Close()
