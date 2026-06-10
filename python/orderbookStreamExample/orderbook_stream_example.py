@@ -93,10 +93,10 @@ def consume_with_reconnect(
     msg_count = 0
     data_loss_count = 0
 
-    while data_loss_count <= MAX_RETRIES:
+    while data_loss_count < MAX_RETRIES:
         if data_loss_count > 0:
             delay = BASE_DELAY_SECONDS * (2 ** (data_loss_count - 1))
-            print(f"Reconnecting {label} after DATA_LOSS in {delay}s (attempt {data_loss_count + 1}/{MAX_RETRIES + 1})")
+            print(f"Reconnecting {label} after DATA_LOSS in {delay}s (attempt {data_loss_count + 1}/{MAX_RETRIES})")
             time.sleep(delay)
 
         channel = create_channel()

@@ -102,10 +102,10 @@ async function consumeWithReconnect(label, makeCall, onData, maxMessages = null)
   let msgCount = 0;
   let dataLossCount = 0;
 
-  while (dataLossCount <= maxRetries) {
+  while (dataLossCount < maxRetries) {
     if (dataLossCount > 0) {
       const delay = baseDelayMs * Math.pow(2, dataLossCount - 1);
-      console.log(`Reconnecting ${label} after DATA_LOSS in ${delay / 1000}s (attempt ${dataLossCount + 1}/${maxRetries + 1})`);
+      console.log(`Reconnecting ${label} after DATA_LOSS in ${delay / 1000}s (attempt ${dataLossCount + 1}/${maxRetries})`);
       await sleep(delay);
     }
 
