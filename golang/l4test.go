@@ -81,11 +81,11 @@ func main() {
 
 			if len(snapshot.Bids) > 0 {
 				o := snapshot.Bids[0]
-				fmt.Printf("  Best bid: %s @ %s (oid=%d)\n", o.Sz, o.LimitPx, o.Oid)
+				fmt.Printf("  Best bid: %s @ %s (oid=%d)\n", o.LimitPx, o.Sz, o.Oid)
 			}
 			if len(snapshot.Asks) > 0 {
 				o := snapshot.Asks[0]
-				fmt.Printf("  Best ask: %s @ %s (oid=%d)\n", o.Sz, o.LimitPx, o.Oid)
+				fmt.Printf("  Best ask: %s @ %s (oid=%d)\n", o.LimitPx, o.Sz, o.Oid)
 			}
 		} else if diff := update.GetDiff(); diff != nil {
 			var diffData map[string]interface{}

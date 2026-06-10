@@ -114,6 +114,8 @@ function main() {
   metadata.add('x-token', AUTH_TOKEN);
   const call = client.StreamData(metadata);
   let printed = 0;
+  let stopping = false;
+  let processing = Promise.resolve();
 
   call.write({
     subscribe: {
@@ -126,10 +128,16 @@ function main() {
     call.write({ ping: { timestamp: Date.now() } });
   }, 30000);
 
-  call.on('data', async (response) => {
-    if (!response.data) return;
+  async function handleData(response) {
+    if (stopping || !response.data) return;
 
-    const text = await decompress(response.data.data);
+    let text;
+    try {
+      text = await decompress(response.data.data);
+    } catch (err) {
+      console.warn(`Decompress error at block ${response.data.block_number}: ${err.message}`);
+      return;
+    }
     if (!matchesTextFilters(text, args.contains)) return;
 
     let parsed = null;
@@ -139,6 +147,7 @@ function main() {
 
     const fees = parsed ? priorityFees(parsed) : [];
     if (!args.allMempool && fees.length === 0) return;
+    if (args.maxMessages && printed >= args.maxMessages) return;
 
     printed += 1;
     console.log(`\nBlock ${response.data.block_number} | Timestamp ${response.data.timestamp}`);
@@ -152,9 +161,18 @@ function main() {
     }
 
     if (args.maxMessages && printed >= args.maxMessages) {
+      stopping = true;
       clearInterval(ping);
       call.end();
     }
+  }
+
+  call.on('data', (response) => {
+    processing = processing
+      .then(() => handleData(response))
+      .catch((err) => {
+        console.error(`Handler error: ${err.message}`);
+      });
   });
 
   call.on('error', (err) => {
