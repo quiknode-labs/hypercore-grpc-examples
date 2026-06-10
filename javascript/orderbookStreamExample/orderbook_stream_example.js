@@ -1,12 +1,12 @@
-// Orderbook Stream Example - Stream L2 and L4 orderbook data via gRPC
+// Orderbook Stream Example - Stream Hyperliquid orderbook data via QuickNode gRPC
 const grpc = require('@grpc/grpc-js');
 const protoLoader = require('@grpc/proto-loader');
 const path = require('path');
 
-// Mainnet: 'your-endpoint.hype-mainnet.quiknode.pro:10000'
-// Testnet: 'your-endpoint.hype-testnet.quiknode.pro:10000'
-const GRPC_ENDPOINT = 'your-endpoint.hype-mainnet.quiknode.pro:10000';
-const AUTH_TOKEN = 'your-auth-token';
+// Mainnet: your-endpoint.hype-mainnet.quiknode.pro:10000
+// Testnet: your-endpoint.hype-testnet.quiknode.pro:10000
+const GRPC_ENDPOINT = process.env.GRPC_ENDPOINT || 'your-endpoint.hype-mainnet.quiknode.pro:10000';
+const AUTH_TOKEN = process.env.AUTH_TOKEN || process.env.QN_AUTH_TOKEN || 'your-quicknode-token';
 const PROTO_PATH = path.join(__dirname, '..', '..', 'proto', 'orderbook.proto');
 
 const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
@@ -26,267 +26,220 @@ function createClient() {
   );
 }
 
-// Stream L2 (aggregated) orderbook
-async function streamL2Orderbook(coin, nLevels = 20, nSigFigs = null, mantissa = null, autoReconnect = true) {
-  console.log('='.repeat(60));
-  console.log(`Streaming L2 Orderbook for ${coin}`);
-  console.log(`Levels: ${nLevels}`);
-  if (nSigFigs !== null) console.log(`Sig Figs: ${nSigFigs}`);
-  if (mantissa !== null) console.log(`Mantissa: ${mantissa}`);
-  console.log(`Auto-reconnect: ${autoReconnect}`);
-  console.log('='.repeat(60) + '\n');
-
-  let retryCount = 0;
-  const maxRetries = 10;
-  const baseDelay = 2000;
-
-  while (retryCount < maxRetries) {
-    const client = createClient();
-    const metadata = new grpc.Metadata();
-    metadata.add('x-token', AUTH_TOKEN);
-
-    const request = {
-      coin: coin,
-      n_levels: nLevels
-    };
-    if (nSigFigs !== null) request.n_sig_figs = nSigFigs;
-    if (mantissa !== null) request.mantissa = mantissa;
-
-    try {
-      if (retryCount > 0) {
-        console.log(`\n🔄 Reconnecting (attempt ${retryCount + 1}/${maxRetries})...`);
-      } else {
-        console.log(`Connecting to ${GRPC_ENDPOINT}...`);
-      }
-
-      let msgCount = 0;
-      const call = client.StreamL2Book(request, metadata);
-
-      call.on('data', (update) => {
-        msgCount++;
-
-        if (msgCount === 1) {
-          console.log('✓ First L2 update received!\n');
-          retryCount = 0; // Reset on success
-        }
-
-        console.log('\n' + '─'.repeat(60));
-        console.log(`Block: ${update.block_number} | Time: ${update.time} | Coin: ${update.coin}`);
-        console.log('─'.repeat(60));
-
-        // Display asks (reversed for display)
-        if (update.asks && update.asks.length > 0) {
-          console.log('\n  ASKS:');
-          update.asks.slice(0, 10).reverse().forEach(level => {
-            console.log(`    ${level.px.padStart(12)} | ${level.sz.padStart(12)} | (${level.n} orders)`);
-          });
-        }
-
-        // Display spread
-        if (update.bids && update.bids.length > 0 && update.asks && update.asks.length > 0) {
-          const bestBid = parseFloat(update.bids[0].px);
-          const bestAsk = parseFloat(update.asks[0].px);
-          const spread = bestAsk - bestBid;
-          const spreadBps = (spread / bestBid) * 10000;
-          console.log('\n  ' + '─'.repeat(44));
-          console.log(`  SPREAD: ${spread.toFixed(2)} (${spreadBps.toFixed(2)} bps)`);
-          console.log('  ' + '─'.repeat(44));
-        }
-
-        // Display bids
-        if (update.bids && update.bids.length > 0) {
-          console.log('\n  BIDS:');
-          update.bids.slice(0, 10).forEach(level => {
-            console.log(`    ${level.px.padStart(12)} | ${level.sz.padStart(12)} | (${level.n} orders)`);
-          });
-        }
-
-        console.log(`\n  Messages received: ${msgCount}`);
-      });
-
-      call.on('error', (err) => {
-        if (err.code === grpc.status.DATA_LOSS && autoReconnect) {
-          console.log(`\n⚠️  Server reinitialized: ${err.message}`);
-          retryCount++;
-          if (retryCount < maxRetries) {
-            const delay = baseDelay * Math.pow(2, retryCount - 1);
-            console.log(`⏳ Waiting ${delay / 1000}s before reconnecting...`);
-            setTimeout(() => streamL2Orderbook(coin, nLevels, nSigFigs, mantissa, autoReconnect), delay);
-          } else {
-            console.log(`\n❌ Max retries (${maxRetries}) reached. Giving up.`);
-          }
-        } else {
-          console.error('\ngRPC error:', err.code, '-', err.message);
-        }
-      });
-
-      call.on('end', () => {
-        console.log('\nStream ended');
-      });
-
-      // Wait for stream to complete
-      await new Promise((resolve) => {
-        call.on('end', resolve);
-        call.on('error', resolve);
-      });
-
-      break; // Exit retry loop on success
-
-    } catch (err) {
-      console.error('Error:', err.message);
-      break;
-    }
-  }
+function createMetadata() {
+  const metadata = new grpc.Metadata();
+  metadata.add('x-token', AUTH_TOKEN);
+  return metadata;
 }
 
-// Stream L4 (individual orders) orderbook
-async function streamL4Orderbook(coin, maxMessages = null, autoReconnect = true) {
-  console.log('='.repeat(60));
-  console.log(`Streaming L4 Orderbook for ${coin}`);
-  console.log(`Auto-reconnect: ${autoReconnect}`);
-  console.log('='.repeat(60) + '\n');
+function parseArgs() {
+  const args = process.argv.slice(2);
+  const get = (name, fallback = null) => {
+    const arg = args.find(a => a.startsWith(`--${name}=`));
+    return arg ? arg.split('=').slice(1).join('=') : fallback;
+  };
 
-  let retryCount = 0;
+  const coinArg = get('coin', 'BTC');
+  return {
+    mode: get('mode', 'bbo'),
+    coins: args.includes('--all') ? [] : coinArg.split(',').map(c => c.trim()).filter(Boolean),
+    coin: coinArg.split(',')[0].trim(),
+    levels: parseInt(get('levels', '20'), 10),
+    sigFigs: get('sig-figs') ? parseInt(get('sig-figs'), 10) : null,
+    mantissa: get('mantissa') ? parseInt(get('mantissa'), 10) : null,
+    skipInitialSnapshot: args.includes('--skip-initial-snapshot'),
+    maxMessages: get('max-messages') ? parseInt(get('max-messages'), 10) : null
+  };
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function levelText(level) {
+  if (!level || !level.px) return 'n/a';
+  return `${level.px} / ${level.sz} (${level.n})`;
+}
+
+function l2Request(args) {
+  const request = {
+    coin: args.coin,
+    n_levels: args.levels
+  };
+  if (args.sigFigs !== null) request.n_sig_figs = args.sigFigs;
+  if (args.mantissa !== null) request.mantissa = args.mantissa;
+  return request;
+}
+
+function l2DiffRequest(args) {
+  const request = {
+    coins: args.coins,
+    n_levels: args.levels,
+    skip_initial_snapshot: args.skipInitialSnapshot
+  };
+  if (args.sigFigs !== null) request.n_sig_figs = args.sigFigs;
+  if (args.mantissa !== null) request.mantissa = args.mantissa;
+  return request;
+}
+
+async function consumeWithReconnect(label, makeCall, onData, maxMessages = null) {
   const maxRetries = 10;
-  const baseDelay = 2000;
-  let totalMsgCount = 0;
+  const baseDelayMs = 2000;
 
-  while (retryCount < maxRetries) {
-    const client = createClient();
-    const metadata = new grpc.Metadata();
-    metadata.add('x-token', AUTH_TOKEN);
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (attempt > 0) {
+      const delay = baseDelayMs * Math.pow(2, attempt - 1);
+      console.log(`Reconnecting ${label} after DATA_LOSS in ${delay / 1000}s (attempt ${attempt + 1}/${maxRetries + 1})`);
+      await sleep(delay);
+    }
 
-    const request = { coin: coin };
-
-    try {
-      if (retryCount > 0) {
-        console.log(`\n🔄 Reconnecting (attempt ${retryCount + 1}/${maxRetries})...`);
-      } else {
-        console.log(`Connecting to ${GRPC_ENDPOINT}...`);
-      }
-
-      let snapshotReceived = false;
-      const call = client.StreamL4Book(request, metadata);
+    const result = await new Promise((resolve, reject) => {
+      let msgCount = 0;
+      const call = makeCall();
 
       call.on('data', (update) => {
-        totalMsgCount++;
+        msgCount += 1;
+        onData(update, msgCount);
 
-        if (update.snapshot) {
-          const snapshot = update.snapshot;
-          snapshotReceived = true;
-          retryCount = 0; // Reset on success
-
-          console.log('\n✓ L4 Snapshot Received!');
-          console.log('─'.repeat(60));
-          console.log(`Coin: ${snapshot.coin}`);
-          console.log(`Height: ${snapshot.height}`);
-          console.log(`Time: ${snapshot.time}`);
-          console.log(`Bids: ${snapshot.bids.length} orders`);
-          console.log(`Asks: ${snapshot.asks.length} orders`);
-          console.log('─'.repeat(60));
-
-          // Sample bids
-          if (snapshot.bids.length > 0) {
-            console.log('\nSample Bids (first 5):');
-            snapshot.bids.slice(0, 5).forEach(order => {
-              console.log(`  OID: ${order.oid} | Price: ${order.limit_px} | Size: ${order.sz} | User: ${order.user.substring(0, 10)}...`);
-            });
-          }
-
-          // Sample asks
-          if (snapshot.asks.length > 0) {
-            console.log('\nSample Asks (first 5):');
-            snapshot.asks.slice(0, 5).forEach(order => {
-              console.log(`  OID: ${order.oid} | Price: ${order.limit_px} | Size: ${order.sz} | User: ${order.user.substring(0, 10)}...`);
-            });
-          }
-
-        } else if (update.diff) {
-          const diff = update.diff;
-
-          if (!snapshotReceived) {
-            console.log('\n⚠ Received diff before snapshot');
-          }
-
-          try {
-            const diffData = JSON.parse(diff.data);
-            const orderStatuses = diffData.order_statuses || [];
-            const bookDiffs = diffData.book_diffs || [];
-
-            console.log(`\n[Block ${diff.height}] L4 Diff:`);
-            console.log(`  Time: ${diff.time}`);
-            console.log(`  Order Statuses: ${orderStatuses.length}`);
-            console.log(`  Book Diffs: ${bookDiffs.length}`);
-
-            if (bookDiffs.length > 0 && bookDiffs.length <= 5) {
-              console.log(`  Diffs: ${JSON.stringify(bookDiffs, null, 2)}`);
-            }
-          } catch (e) {
-            console.log(`  Error parsing diff: ${e.message}`);
-          }
-        }
-
-        if (maxMessages && totalMsgCount >= maxMessages) {
-          console.log(`\nReached max messages (${maxMessages}), stopping...`);
+        if (maxMessages && msgCount >= maxMessages) {
           call.cancel();
         }
       });
 
       call.on('error', (err) => {
-        if (err.code === grpc.status.DATA_LOSS && autoReconnect) {
-          console.log(`\n⚠️  Server reinitialized: ${err.message}`);
-          retryCount++;
-          if (retryCount < maxRetries) {
-            const delay = baseDelay * Math.pow(2, retryCount - 1);
-            console.log(`⏳ Waiting ${delay / 1000}s before reconnecting...`);
-            setTimeout(() => streamL4Orderbook(coin, maxMessages, autoReconnect), delay);
-          } else {
-            console.log(`\n❌ Max retries (${maxRetries}) reached. Giving up.`);
-          }
-        } else if (err.code !== grpc.status.CANCELLED) {
-          console.error('\ngRPC error:', err.code, '-', err.message);
+        if (err.code === grpc.status.CANCELLED && maxMessages && msgCount >= maxMessages) {
+          resolve('done');
+        } else if (err.code === grpc.status.DATA_LOSS) {
+          resolve('data_loss');
+        } else {
+          reject(err);
         }
       });
 
-      call.on('end', () => {
-        console.log('\nStream ended');
+      call.on('end', () => resolve('done'));
+    });
+
+    if (result !== 'data_loss') return;
+  }
+
+  throw new Error(`${label} exceeded max reconnect attempts`);
+}
+
+async function streamL2(args) {
+  await consumeWithReconnect(
+    'StreamL2Book',
+    () => createClient().StreamL2Book(l2Request(args), createMetadata()),
+    (update, count) => {
+      const bestBid = update.bids && update.bids.length ? update.bids[0] : null;
+      const bestAsk = update.asks && update.asks.length ? update.asks[0] : null;
+      console.log(`[${count}] L2 ${update.coin} block=${update.block_number} bid=${levelText(bestBid)} ask=${levelText(bestAsk)} bids=${update.bids.length} asks=${update.asks.length}`);
+    },
+    args.maxMessages
+  );
+}
+
+async function streamL4(args) {
+  await consumeWithReconnect(
+    'StreamL4Book',
+    () => createClient().StreamL4Book({ coin: args.coin }, createMetadata()),
+    (update, count) => {
+      if (update.snapshot) {
+        console.log(`[${count}] L4 snapshot ${update.snapshot.coin} height=${update.snapshot.height} bids=${update.snapshot.bids.length} asks=${update.snapshot.asks.length}`);
+      } else if (update.diff) {
+        const data = JSON.parse(update.diff.data);
+        console.log(`[${count}] L4 diff height=${update.diff.height} order_statuses=${(data.order_statuses || []).length} book_diffs=${(data.book_diffs || []).length}`);
+      }
+    },
+    args.maxMessages
+  );
+}
+
+async function streamBbo(args) {
+  await consumeWithReconnect(
+    'StreamBboBook',
+    () => createClient().StreamBboBook({ coins: args.coins }, createMetadata()),
+    (update, count) => {
+      console.log(`[${count}] BBO ${update.coin} block=${update.block_number} bid=${levelText(update.bid)} ask=${levelText(update.ask)}`);
+    },
+    args.maxMessages
+  );
+}
+
+async function streamL2Diff(args) {
+  await consumeWithReconnect(
+    'StreamL2BookDiff',
+    () => createClient().StreamL2BookDiff(l2DiffRequest(args), createMetadata()),
+    (update, count) => {
+      console.log(`[${count}] L2 diff height=${update.height} snapshot=${update.snapshot} coins=${update.diffs.length}`);
+      update.diffs.slice(0, 5).forEach(diff => {
+        console.log(`  ${diff.coin} seq=${diff.seq} prev_seq=${diff.prev_seq} snapshot=${diff.snapshot} bid_changes=${diff.bids.length} ask_changes=${diff.asks.length}`);
       });
+    },
+    args.maxMessages
+  );
+}
 
-      // Wait for stream to complete
-      await new Promise((resolve) => {
-        call.on('end', resolve);
-        call.on('error', resolve);
+async function streamL4Updates(args) {
+  await consumeWithReconnect(
+    'StreamL4BookUpdates',
+    () => createClient().StreamL4BookUpdates({ coins: args.coins }, createMetadata()),
+    (update, count) => {
+      console.log(`[${count}] L4 updates height=${update.height} snapshot=${update.snapshot} diffs=${update.diffs.length}`);
+      update.diffs.slice(0, 5).forEach(diff => {
+        console.log(`  ${diff.diff_type} ${diff.coin} oid=${diff.oid} side=${diff.side || 'n/a'} px=${diff.px || 'n/a'} sz=${diff.sz || 'n/a'}`);
       });
+    },
+    args.maxMessages
+  );
+}
 
-      break; // Exit retry loop on success
+async function streamTpsl(args) {
+  await consumeWithReconnect(
+    'StreamTpslUpdates',
+    () => createClient().StreamTpslUpdates({ coins: args.coins }, createMetadata()),
+    (update, count) => {
+      console.log(`[${count}] TP/SL height=${update.height} snapshot=${update.snapshot} diffs=${update.diffs.length}`);
+      update.diffs.slice(0, 5).forEach(diff => {
+        console.log(`  ${diff.diff_type} ${diff.coin} oid=${diff.oid} trigger=${diff.trigger_px || 'n/a'} limit=${diff.limit_px || 'n/a'} sz=${diff.sz || 'n/a'} reason=${diff.reason || 'n/a'}`);
+      });
+    },
+    args.maxMessages
+  );
+}
 
-    } catch (err) {
-      console.error('Error:', err.message);
-      break;
-    }
+async function main() {
+  const args = parseArgs();
+
+  console.log('Hyperliquid Orderbook Stream Example');
+  console.log(`Endpoint: ${GRPC_ENDPOINT}`);
+  console.log(`Mode: ${args.mode}`);
+  console.log(`Coins: ${args.coins.length ? args.coins.join(',') : 'all eligible coins'}`);
+
+  if (AUTH_TOKEN === 'your-quicknode-token') {
+    console.error('Set AUTH_TOKEN to your QuickNode token before running this example.');
+    process.exit(1);
+  }
+
+  switch (args.mode) {
+    case 'l2':
+      return streamL2(args);
+    case 'l4':
+      return streamL4(args);
+    case 'bbo':
+      return streamBbo(args);
+    case 'l2-diff':
+      return streamL2Diff(args);
+    case 'l4-updates':
+      return streamL4Updates(args);
+    case 'tpsl':
+      return streamTpsl(args);
+    default:
+      console.error('Invalid mode. Use --mode=l2, l4, bbo, l2-diff, l4-updates, or tpsl.');
+      process.exit(1);
   }
 }
 
-// Parse command line args
-const args = process.argv.slice(2);
-const mode = args.find(a => a.startsWith('--mode='))?.split('=')[1] || 'l2';
-const coin = args.find(a => a.startsWith('--coin='))?.split('=')[1] || 'BTC';
-const levels = parseInt(args.find(a => a.startsWith('--levels='))?.split('=')[1]) || 20;
-const sigFigsArg = args.find(a => a.startsWith('--sig-figs='))?.split('=')[1];
-const mantissaArg = args.find(a => a.startsWith('--mantissa='))?.split('=')[1];
-const sigFigs = sigFigsArg ? parseInt(sigFigsArg) : null;
-const mantissaParsed = mantissaArg ? parseInt(mantissaArg) : null;
-
-console.log('\n' + '='.repeat(60));
-console.log('Hyperliquid Orderbook Stream Example');
-console.log(`Endpoint: ${GRPC_ENDPOINT}`);
-console.log('='.repeat(60));
-
-if (mode === 'l2') {
-  streamL2Orderbook(coin, levels, sigFigs, mantissaParsed);
-} else if (mode === 'l4') {
-  streamL4Orderbook(coin);
-} else {
-  console.log('Invalid mode. Use --mode=l2 or --mode=l4');
+main().catch(err => {
+  console.error('Stream failed:', err.message);
   process.exit(1);
-}
+});

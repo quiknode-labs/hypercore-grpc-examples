@@ -1,4 +1,4 @@
-// Orderbook Stream Example - Stream L2 and L4 orderbook data via gRPC
+// Orderbook Stream Example - Stream orderbook data via QuickNode gRPC
 use std::time::Duration;
 use tonic::transport::{Channel, ClientTlsConfig};
 use tonic::{metadata::MetadataValue, Request, Status};
@@ -8,14 +8,59 @@ pub mod hyperliquid {
 }
 
 use hyperliquid::order_book_streaming_client::OrderBookStreamingClient;
-use hyperliquid::{L2BookRequest, L4BookRequest};
+use hyperliquid::{BboBookRequest, L2BookDiffRequest, L2BookRequest, L4BookRequest, L4BookUpdatesRequest, TpslUpdatesRequest};
 
 // Mainnet: "https://your-endpoint.hype-mainnet.quiknode.pro:10000"
 // Testnet: "https://your-endpoint.hype-testnet.quiknode.pro:10000"
-const GRPC_ENDPOINT: &str = "https://your-endpoint.hype-mainnet.quiknode.pro:10000";
-const AUTH_TOKEN: &str = "your-auth-token";
+const DEFAULT_GRPC_ENDPOINT: &str = "https://your-endpoint.hype-mainnet.quiknode.pro:10000";
+const DEFAULT_AUTH_TOKEN: &str = "your-quicknode-token";
 const MAX_RETRIES: usize = 10;
 const BASE_DELAY_SECS: u64 = 2;
+
+fn grpc_endpoint() -> String {
+    std::env::var("GRPC_ENDPOINT").unwrap_or_else(|_| DEFAULT_GRPC_ENDPOINT.to_string())
+}
+
+fn auth_token() -> String {
+    std::env::var("AUTH_TOKEN")
+        .or_else(|_| std::env::var("QN_AUTH_TOKEN"))
+        .unwrap_or_else(|_| DEFAULT_AUTH_TOKEN.to_string())
+}
+
+async fn orderbook_client() -> Result<OrderBookStreamingClient<Channel>, Box<dyn std::error::Error>> {
+    let channel = Channel::from_shared(grpc_endpoint())?
+        .tls_config(ClientTlsConfig::new())?
+        .connect()
+        .await?;
+    Ok(OrderBookStreamingClient::new(channel))
+}
+
+fn with_auth<T>(message: T) -> Result<Request<T>, Box<dyn std::error::Error>> {
+    let mut request = Request::new(message);
+    request
+        .metadata_mut()
+        .insert("x-token", auth_token().parse::<MetadataValue<_>>()?);
+    Ok(request)
+}
+
+fn split_coins(coin_arg: &str, all: bool) -> Vec<String> {
+    if all {
+        return Vec::new();
+    }
+    coin_arg
+        .split(',')
+        .map(|coin| coin.trim())
+        .filter(|coin| !coin.is_empty())
+        .map(|coin| coin.to_string())
+        .collect()
+}
+
+fn level_text(level: Option<&hyperliquid::L2Level>) -> String {
+    match level {
+        Some(level) if !level.px.is_empty() => format!("{} / {} ({})", level.px, level.sz, level.n),
+        _ => "n/a".to_string(),
+    }
+}
 
 async fn stream_l2_orderbook(coin: &str, n_levels: u32, n_sig_figs: Option<u32>, mantissa: Option<u64>) -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", "=".repeat(60));
@@ -33,7 +78,8 @@ async fn stream_l2_orderbook(coin: &str, n_levels: u32, n_sig_figs: Option<u32>,
     let mut retry_count = 0;
 
     while retry_count < MAX_RETRIES {
-        let channel = Channel::from_static(GRPC_ENDPOINT)
+        let endpoint = grpc_endpoint();
+        let channel = Channel::from_shared(endpoint.clone())?
             .tls_config(ClientTlsConfig::new())?
             .connect()
             .await?;
@@ -50,13 +96,13 @@ async fn stream_l2_orderbook(coin: &str, n_levels: u32, n_sig_figs: Option<u32>,
         if retry_count > 0 {
             println!("\n🔄 Reconnecting (attempt {}/{})...", retry_count + 1, MAX_RETRIES);
         } else {
-            println!("Connecting to {}...", GRPC_ENDPOINT);
+            println!("Connecting to {}...", endpoint);
         }
 
         let mut request_with_metadata = Request::new(request);
         request_with_metadata
             .metadata_mut()
-            .insert("x-token", AUTH_TOKEN.parse::<MetadataValue<_>>()?);
+            .insert("x-token", auth_token().parse::<MetadataValue<_>>()?);
 
         let mut stream = match client.stream_l2_book(request_with_metadata).await {
             Ok(response) => response.into_inner(),
@@ -145,6 +191,249 @@ async fn stream_l2_orderbook(coin: &str, n_levels: u32, n_sig_figs: Option<u32>,
     Ok(())
 }
 
+async fn stream_bbo(coins: Vec<String>, max_messages: Option<usize>) -> Result<(), Box<dyn std::error::Error>> {
+    println!("{}", "=".repeat(60));
+    if coins.is_empty() {
+        println!("Streaming BBO for all eligible coins");
+    } else {
+        println!("Streaming BBO for {}", coins.join(","));
+    }
+    println!("{}\n", "=".repeat(60));
+
+    let mut retry_count = 0;
+    let mut msg_count = 0usize;
+
+    while retry_count < MAX_RETRIES {
+        let mut client = orderbook_client().await?;
+        let request = BboBookRequest { coins: coins.clone() };
+        let mut stream = client.stream_bbo_book(with_auth(request)?).await?.into_inner();
+        let mut should_retry = false;
+
+        loop {
+            match stream.message().await {
+                Ok(Some(update)) => {
+                    msg_count += 1;
+                    retry_count = 0;
+                    println!("[{}] BBO {} block={} bid={} ask={}",
+                        msg_count, update.coin, update.block_number, level_text(update.bid.as_ref()), level_text(update.ask.as_ref()));
+
+                    if let Some(max) = max_messages {
+                        if msg_count >= max {
+                            return Ok(());
+                        }
+                    }
+                }
+                Ok(None) => break,
+                Err(status) => {
+                    if status.code() == tonic::Code::DataLoss {
+                        retry_count += 1;
+                        if retry_count < MAX_RETRIES {
+                            let delay = BASE_DELAY_SECS * 2_u64.pow((retry_count - 1) as u32);
+                            println!("DATA_LOSS from BBO stream; reconnecting in {}s", delay);
+                            tokio::time::sleep(Duration::from_secs(delay)).await;
+                            should_retry = true;
+                            break;
+                        }
+                    }
+                    return Err(Box::new(status));
+                }
+            }
+        }
+
+        if !should_retry {
+            break;
+        }
+    }
+
+    Ok(())
+}
+
+async fn stream_l2_book_diff(coins: Vec<String>, n_levels: u32, n_sig_figs: Option<u32>, mantissa: Option<u64>, skip_initial_snapshot: bool, max_messages: Option<usize>) -> Result<(), Box<dyn std::error::Error>> {
+    println!("{}", "=".repeat(60));
+    if coins.is_empty() {
+        println!("Streaming L2 Book Diffs for all eligible coins");
+    } else {
+        println!("Streaming L2 Book Diffs for {}", coins.join(","));
+    }
+    println!("{}\n", "=".repeat(60));
+
+    let mut retry_count = 0;
+    let mut msg_count = 0usize;
+
+    while retry_count < MAX_RETRIES {
+        let mut client = orderbook_client().await?;
+        let request = L2BookDiffRequest {
+            coins: coins.clone(),
+            n_levels,
+            n_sig_figs,
+            mantissa,
+            skip_initial_snapshot,
+        };
+        let mut stream = client.stream_l2_book_diff(with_auth(request)?).await?.into_inner();
+        let mut should_retry = false;
+
+        loop {
+            match stream.message().await {
+                Ok(Some(update)) => {
+                    msg_count += 1;
+                    retry_count = 0;
+                    println!("[{}] L2 diff height={} snapshot={} coins={}", msg_count, update.height, update.snapshot, update.diffs.len());
+                    for diff in update.diffs.iter().take(5) {
+                        println!("  {} seq={} prev_seq={} snapshot={} bid_changes={} ask_changes={}",
+                            diff.coin, diff.seq, diff.prev_seq, diff.snapshot, diff.bids.len(), diff.asks.len());
+                    }
+
+                    if let Some(max) = max_messages {
+                        if msg_count >= max {
+                            return Ok(());
+                        }
+                    }
+                }
+                Ok(None) => break,
+                Err(status) => {
+                    if status.code() == tonic::Code::DataLoss {
+                        retry_count += 1;
+                        if retry_count < MAX_RETRIES {
+                            let delay = BASE_DELAY_SECS * 2_u64.pow((retry_count - 1) as u32);
+                            println!("DATA_LOSS from L2 diff stream; reconnecting in {}s", delay);
+                            tokio::time::sleep(Duration::from_secs(delay)).await;
+                            should_retry = true;
+                            break;
+                        }
+                    }
+                    return Err(Box::new(status));
+                }
+            }
+        }
+
+        if !should_retry {
+            break;
+        }
+    }
+
+    Ok(())
+}
+
+async fn stream_l4_book_updates(coins: Vec<String>, max_messages: Option<usize>) -> Result<(), Box<dyn std::error::Error>> {
+    println!("{}", "=".repeat(60));
+    if coins.is_empty() {
+        println!("Streaming L4 Book Updates for all eligible coins");
+    } else {
+        println!("Streaming L4 Book Updates for {}", coins.join(","));
+    }
+    println!("{}\n", "=".repeat(60));
+
+    let mut retry_count = 0;
+    let mut msg_count = 0usize;
+
+    while retry_count < MAX_RETRIES {
+        let mut client = orderbook_client().await?;
+        let request = L4BookUpdatesRequest { coins: coins.clone() };
+        let mut stream = client.stream_l4_book_updates(with_auth(request)?).await?.into_inner();
+        let mut should_retry = false;
+
+        loop {
+            match stream.message().await {
+                Ok(Some(update)) => {
+                    msg_count += 1;
+                    retry_count = 0;
+                    println!("[{}] L4 updates height={} snapshot={} diffs={}", msg_count, update.height, update.snapshot, update.diffs.len());
+                    for diff in update.diffs.iter().take(5) {
+                        println!("  type={} {} oid={} side={} px={} sz={}",
+                            diff.diff_type, diff.coin, diff.oid, diff.side, diff.px, diff.sz);
+                    }
+
+                    if let Some(max) = max_messages {
+                        if msg_count >= max {
+                            return Ok(());
+                        }
+                    }
+                }
+                Ok(None) => break,
+                Err(status) => {
+                    if status.code() == tonic::Code::DataLoss {
+                        retry_count += 1;
+                        if retry_count < MAX_RETRIES {
+                            let delay = BASE_DELAY_SECS * 2_u64.pow((retry_count - 1) as u32);
+                            println!("DATA_LOSS from L4 updates stream; reconnecting in {}s", delay);
+                            tokio::time::sleep(Duration::from_secs(delay)).await;
+                            should_retry = true;
+                            break;
+                        }
+                    }
+                    return Err(Box::new(status));
+                }
+            }
+        }
+
+        if !should_retry {
+            break;
+        }
+    }
+
+    Ok(())
+}
+
+async fn stream_tpsl_updates(coins: Vec<String>, max_messages: Option<usize>) -> Result<(), Box<dyn std::error::Error>> {
+    println!("{}", "=".repeat(60));
+    if coins.is_empty() {
+        println!("Streaming TP/SL Updates for all perp coins");
+    } else {
+        println!("Streaming TP/SL Updates for {}", coins.join(","));
+    }
+    println!("{}\n", "=".repeat(60));
+
+    let mut retry_count = 0;
+    let mut msg_count = 0usize;
+
+    while retry_count < MAX_RETRIES {
+        let mut client = orderbook_client().await?;
+        let request = TpslUpdatesRequest { coins: coins.clone() };
+        let mut stream = client.stream_tpsl_updates(with_auth(request)?).await?.into_inner();
+        let mut should_retry = false;
+
+        loop {
+            match stream.message().await {
+                Ok(Some(update)) => {
+                    msg_count += 1;
+                    retry_count = 0;
+                    println!("[{}] TP/SL height={} snapshot={} diffs={}", msg_count, update.height, update.snapshot, update.diffs.len());
+                    for diff in update.diffs.iter().take(5) {
+                        println!("  type={} {} oid={} trigger={} limit={} sz={} reason={}",
+                            diff.diff_type, diff.coin, diff.oid, diff.trigger_px, diff.limit_px, diff.sz, diff.reason);
+                    }
+
+                    if let Some(max) = max_messages {
+                        if msg_count >= max {
+                            return Ok(());
+                        }
+                    }
+                }
+                Ok(None) => break,
+                Err(status) => {
+                    if status.code() == tonic::Code::DataLoss {
+                        retry_count += 1;
+                        if retry_count < MAX_RETRIES {
+                            let delay = BASE_DELAY_SECS * 2_u64.pow((retry_count - 1) as u32);
+                            println!("DATA_LOSS from TP/SL updates stream; reconnecting in {}s", delay);
+                            tokio::time::sleep(Duration::from_secs(delay)).await;
+                            should_retry = true;
+                            break;
+                        }
+                    }
+                    return Err(Box::new(status));
+                }
+            }
+        }
+
+        if !should_retry {
+            break;
+        }
+    }
+
+    Ok(())
+}
+
 async fn stream_l4_orderbook(coin: &str, max_messages: Option<usize>) -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", "=".repeat(60));
     println!("Streaming L4 Orderbook for {}", coin);
@@ -155,7 +444,8 @@ async fn stream_l4_orderbook(coin: &str, max_messages: Option<usize>) -> Result<
     let mut total_msg_count = 0;
 
     while retry_count < MAX_RETRIES {
-        let channel = Channel::from_static(GRPC_ENDPOINT)
+        let endpoint = grpc_endpoint();
+        let channel = Channel::from_shared(endpoint.clone())?
             .tls_config(ClientTlsConfig::new())?
             .connect()
             .await?;
@@ -169,13 +459,13 @@ async fn stream_l4_orderbook(coin: &str, max_messages: Option<usize>) -> Result<
         if retry_count > 0 {
             println!("\n🔄 Reconnecting (attempt {}/{})...", retry_count + 1, MAX_RETRIES);
         } else {
-            println!("Connecting to {}...", GRPC_ENDPOINT);
+            println!("Connecting to {}...", endpoint);
         }
 
         let mut request_with_metadata = Request::new(request);
         request_with_metadata
             .metadata_mut()
-            .insert("x-token", AUTH_TOKEN.parse::<MetadataValue<_>>()?);
+            .insert("x-token", auth_token().parse::<MetadataValue<_>>()?);
 
         let mut stream = match client.stream_l4_book(request_with_metadata).await {
             Ok(response) => response.into_inner(),
@@ -310,9 +600,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut mode = "l2";
     let mut coin = "BTC";
+    let mut all = false;
     let mut levels = 20u32;
     let mut n_sig_figs: Option<u32> = None;
     let mut mantissa: Option<u64> = None;
+    let mut skip_initial_snapshot = false;
     let mut max_messages: Option<usize> = None;
 
     // Parse args
@@ -321,12 +613,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             mode = value;
         } else if let Some(value) = arg.strip_prefix("--coin=") {
             coin = value;
+        } else if arg == "--all" {
+            all = true;
         } else if let Some(value) = arg.strip_prefix("--levels=") {
             levels = value.parse().unwrap_or(20);
         } else if let Some(value) = arg.strip_prefix("--sig-figs=") {
             n_sig_figs = value.parse().ok();
         } else if let Some(value) = arg.strip_prefix("--mantissa=") {
             mantissa = value.parse().ok();
+        } else if arg == "--skip-initial-snapshot" {
+            skip_initial_snapshot = true;
         } else if let Some(value) = arg.strip_prefix("--max-messages=") {
             max_messages = Some(value.parse().unwrap_or(0));
         }
@@ -334,14 +630,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n{}", "=".repeat(60));
     println!("Hyperliquid Orderbook Stream Example");
-    println!("Endpoint: {}", GRPC_ENDPOINT);
+    println!("Endpoint: {}", grpc_endpoint());
     println!("{}", "=".repeat(60));
+
+    if auth_token() == DEFAULT_AUTH_TOKEN {
+        eprintln!("Set AUTH_TOKEN to your QuickNode token before running this example");
+        std::process::exit(1);
+    }
+
+    let coins = split_coins(coin, all);
 
     match mode {
         "l2" => stream_l2_orderbook(coin, levels, n_sig_figs, mantissa).await,
         "l4" => stream_l4_orderbook(coin, max_messages).await,
+        "bbo" => stream_bbo(coins, max_messages).await,
+        "l2-diff" => stream_l2_book_diff(coins, levels, n_sig_figs, mantissa, skip_initial_snapshot, max_messages).await,
+        "l4-updates" => stream_l4_book_updates(coins, max_messages).await,
+        "tpsl" => stream_tpsl_updates(coins, max_messages).await,
         _ => {
-            eprintln!("Invalid mode. Use --mode=l2 or --mode=l4");
+            eprintln!("Invalid mode. Use --mode=l2, l4, bbo, l2-diff, l4-updates, or tpsl");
             std::process::exit(1);
         }
     }

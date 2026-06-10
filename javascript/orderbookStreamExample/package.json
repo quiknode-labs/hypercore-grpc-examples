@@ -6,7 +6,11 @@
   "scripts": {
     "start": "node orderbook_stream_example.js",
     "l2": "node orderbook_stream_example.js --mode=l2 --coin=BTC",
-    "l4": "node orderbook_stream_example.js --mode=l4 --coin=BTC"
+    "l4": "node orderbook_stream_example.js --mode=l4 --coin=BTC",
+    "bbo": "node orderbook_stream_example.js --mode=bbo --coin=BTC",
+    "l2-diff": "node orderbook_stream_example.js --mode=l2-diff --coin=BTC",
+    "l4-updates": "node orderbook_stream_example.js --mode=l4-updates --coin=BTC",
+    "tpsl": "node orderbook_stream_example.js --mode=tpsl --coin=BTC"
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.9.0",

@@ -32,6 +32,7 @@ const (
 	StreamType_EVENTS         StreamType = 5
 	StreamType_BLOCKS         StreamType = 6
 	StreamType_WRITER_ACTIONS StreamType = 7
+	StreamType_MEMPOOL_TXS    StreamType = 8 // Testnet only
 )
 
 // Enum value maps for StreamType.
@@ -45,6 +46,7 @@ var (
 		5: "EVENTS",
 		6: "BLOCKS",
 		7: "WRITER_ACTIONS",
+		8: "MEMPOOL_TXS",
 	}
 	StreamType_value = map[string]int32{
 		"UNKNOWN":        0,
@@ -55,6 +57,7 @@ var (
 		"EVENTS":         5,
 		"BLOCKS":         6,
 		"WRITER_ACTIONS": 7,
+		"MEMPOOL_TXS":    8,
 	}
 )
 
@@ -733,7 +736,7 @@ const file_hyperliquid_proto_rawDesc = "" +
 	"\vPingRequest\x12\x14\n" +
 	"\x05count\x18\x01 \x01(\x05R\x05count\"$\n" +
 	"\fPingResponse\x12\x14\n" +
-	"\x05count\x18\x01 \x01(\x05R\x05count*y\n" +
+	"\x05count\x18\x01 \x01(\x05R\x05count*\x8a\x01\n" +
 	"\n" +
 	"StreamType\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\n" +
@@ -747,7 +750,8 @@ const file_hyperliquid_proto_rawDesc = "" +
 	"\x06EVENTS\x10\x05\x12\n" +
 	"\n" +
 	"\x06BLOCKS\x10\x06\x12\x12\n" +
-	"\x0eWRITER_ACTIONS\x10\a2\x97\x01\n" +
+	"\x0eWRITER_ACTIONS\x10\a\x12\x0f\n" +
+	"\vMEMPOOL_TXS\x10\b2\x97\x01\n" +
 	"\tStreaming\x12M\n" +
 	"\n" +
 	"StreamData\x12\x1d.hyperliquid.SubscribeRequest\x1a\x1c.hyperliquid.SubscribeUpdate(\x010\x01\x12;\n" +
