@@ -11,7 +11,12 @@ Main streaming service for blockchain data:
 - **Methods**:
   - `StreamData` - Bi-directional streaming for trades, orders, book updates, etc.
   - `Ping` - Health check
-- **Stream Types**: TRADES, ORDERS, BOOK_UPDATES, TWAP, EVENTS, BLOCKS, WRITER_ACTIONS
+- **Stream Types**: TRADES, ORDERS, BOOK_UPDATES, TWAP, EVENTS, BLOCKS, WRITER_ACTIONS, MEMPOOL_TXS
+
+#### MEMPOOL_TXS
+- Testnet-only stream type
+- Emits mempool transactions, including priority order submissions
+- See `python/priorityOrderExample/` for a runnable priority transaction watcher
 
 ### orderbook.proto
 
@@ -96,6 +101,7 @@ tonic_build::compile_protos("orderbook.proto")?;
 
 See the language-specific example directories:
 - `python/orderbookStreamExample/`
+- `python/priorityOrderExample/`
 - `javascript/orderbookStreamExample/`
 - `golang/orderbookStreamExample/`
 - `rust/src/orderbookStreamExample/`

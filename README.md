@@ -37,7 +37,7 @@ All stream types are available on both networks, except `MEMPOOL_TXS` which is *
 | `TWAP` | TWAP orders | Mainnet, Testnet |
 | `BLOCKS` | Raw blocks | Mainnet, Testnet |
 | `WRITER_ACTIONS` | Writer actions | Mainnet, Testnet |
-| `MEMPOOL_TXS` | Mempool transactions | Testnet only |
+| `MEMPOOL_TXS` | Testnet mempool transactions, including priority order submissions | Testnet only |
 
 ## Orderbook Streaming Methods
 
@@ -63,6 +63,23 @@ export AUTH_TOKEN="YOUR_QUICKNODE_TOKEN"
 
 node orderbook_stream_example.js --mode=bbo --coin=BTC --max-messages=5
 ```
+
+## Testnet Priority Mempool
+
+Priority transactions can be observed on the testnet-only `MEMPOOL_TXS` stream. The Python priority example starts a gRPC watcher against your QuickNode testnet endpoint and prints mempool payloads that contain priority grouping.
+
+```bash
+cd python/priorityOrderExample
+pip install -r requirements.txt
+python -m grpc_tools.protoc -I../../proto --python_out=. --grpc_python_out=. ../../proto/hyperliquid.proto
+
+export GRPC_ENDPOINT="your-endpoint.hype-testnet.quiknode.pro:10000"
+export AUTH_TOKEN="YOUR_QUICKNODE_TOKEN"
+
+python watch_priority_mempool.py --max-messages 5
+```
+
+See [python/priorityOrderExample](python/priorityOrderExample/README.md) for priority-only filtering and all-mempool mode.
 
 ## Filtering
 

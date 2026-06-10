@@ -32,7 +32,7 @@ const (
 	StreamType_EVENTS         StreamType = 5
 	StreamType_BLOCKS         StreamType = 6
 	StreamType_WRITER_ACTIONS StreamType = 7
-	StreamType_MEMPOOL_TXS    StreamType = 8 // Testnet only
+	StreamType_MEMPOOL_TXS    StreamType = 8 // Testnet-only mempool transactions, including priority order submissions
 )
 
 // Enum value maps for StreamType.
