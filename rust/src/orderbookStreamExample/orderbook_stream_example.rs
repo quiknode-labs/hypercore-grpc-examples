@@ -122,7 +122,6 @@ async fn stream_l2_orderbook(coin: &str, n_levels: u32, n_sig_figs: Option<u32>,
 
                     if total_msg_count == 1 {
                         println!("✓ First L2 update received!\n");
-                        retry_count = 0; // Reset on success
                     }
 
                     // Display orderbook
@@ -219,7 +218,6 @@ async fn stream_bbo(coins: Vec<String>, max_messages: Option<usize>) -> Result<(
             match stream.message().await {
                 Ok(Some(update)) => {
                     msg_count += 1;
-                    retry_count = 0;
                     println!("[{}] BBO {} block={} bid={} ask={}",
                         msg_count, update.coin, update.block_number, level_text(update.bid.as_ref()), level_text(update.ask.as_ref()));
 
@@ -282,7 +280,6 @@ async fn stream_l2_book_diff(coins: Vec<String>, n_levels: u32, n_sig_figs: Opti
             match stream.message().await {
                 Ok(Some(update)) => {
                     msg_count += 1;
-                    retry_count = 0;
                     println!("[{}] L2 diff height={} snapshot={} coins={}", msg_count, update.height, update.snapshot, update.diffs.len());
                     for diff in update.diffs.iter().take(5) {
                         println!("  {} seq={} prev_seq={} snapshot={} bid_changes={} ask_changes={}",
@@ -342,7 +339,6 @@ async fn stream_l4_book_updates(coins: Vec<String>, max_messages: Option<usize>)
             match stream.message().await {
                 Ok(Some(update)) => {
                     msg_count += 1;
-                    retry_count = 0;
                     println!("[{}] L4 updates height={} snapshot={} diffs={}", msg_count, update.height, update.snapshot, update.diffs.len());
                     for diff in update.diffs.iter().take(5) {
                         println!("  type={} {} oid={} side={} px={} sz={}",
@@ -402,7 +398,6 @@ async fn stream_tpsl_updates(coins: Vec<String>, max_messages: Option<usize>) ->
             match stream.message().await {
                 Ok(Some(update)) => {
                     msg_count += 1;
-                    retry_count = 0;
                     println!("[{}] TP/SL height={} snapshot={} diffs={}", msg_count, update.height, update.snapshot, update.diffs.len());
                     for diff in update.diffs.iter().take(5) {
                         println!("  type={} {} oid={} trigger={} limit={} sz={} reason={}",
@@ -491,7 +486,6 @@ async fn stream_l4_orderbook(coin: &str, max_messages: Option<usize>) -> Result<
 
                     if let Some(snapshot) = update.snapshot {
                         snapshot_received = true;
-                        retry_count = 0; // Reset on success
 
                         println!("\n✓ L4 Snapshot Received!");
                         println!("{}", "─".repeat(60));
