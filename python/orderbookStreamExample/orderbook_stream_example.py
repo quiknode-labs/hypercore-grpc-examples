@@ -244,7 +244,10 @@ def parse_args():
         parser.error("--all is only supported for bbo, l2-diff, l4-updates, and tpsl. Use --coin for l2 or l4.")
 
     args.coins = [] if args.all else [coin.strip() for coin in args.coin.split(",") if coin.strip()]
-    args.coin = args.coins[0] if args.coins else "BTC"
+    if not args.all and not args.coins:
+        parser.error("--coin must include at least one symbol. Use --all to subscribe to every eligible coin on multi-coin streams.")
+
+    args.coin = args.coins[0] if args.coins else ""
     return args
 
 

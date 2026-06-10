@@ -632,6 +632,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("--all is only supported for bbo, l2-diff, l4-updates, and tpsl. Use --coin for l2 or l4.");
         std::process::exit(2);
     }
+    let coins = split_coins(coin, all);
+    if !all && coins.is_empty() {
+        eprintln!("--coin must include at least one symbol. Use --all to subscribe to every eligible coin on multi-coin streams.");
+        std::process::exit(2);
+    }
 
     println!("\n{}", "=".repeat(60));
     println!("Hyperliquid Orderbook Stream Example");
@@ -643,8 +648,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     }
 
-    let coins = split_coins(coin, all);
-    let single_coin = coins.first().map(String::as_str).unwrap_or("BTC");
+    let single_coin = coins.first().map(String::as_str).unwrap_or("");
 
     match mode {
         "l2" => stream_l2_orderbook(single_coin, levels, n_sig_figs, mantissa).await,

@@ -40,11 +40,13 @@ function parseArgs() {
   };
 
   const coinArg = get('coin', 'BTC');
+  const all = args.includes('--all');
+  const coins = all ? [] : coinArg.split(',').map(c => c.trim()).filter(Boolean);
   return {
     mode: get('mode', 'bbo'),
-    all: args.includes('--all'),
-    coins: args.includes('--all') ? [] : coinArg.split(',').map(c => c.trim()).filter(Boolean),
-    coin: coinArg.split(',')[0].trim(),
+    all,
+    coins,
+    coin: coins[0] || '',
     levels: parseInt(get('levels', '20'), 10),
     sigFigs: get('sig-figs') ? parseInt(get('sig-figs'), 10) : null,
     mantissa: get('mantissa') ? parseInt(get('mantissa'), 10) : null,
@@ -56,6 +58,10 @@ function parseArgs() {
 function validateArgs(args) {
   if (args.all && (args.mode === 'l2' || args.mode === 'l4')) {
     console.error('--all is only supported for bbo, l2-diff, l4-updates, and tpsl. Use --coin for l2 or l4.');
+    process.exit(2);
+  }
+  if (!args.all && args.coins.length === 0) {
+    console.error('--coin must include at least one symbol. Use --all to subscribe to every eligible coin on multi-coin streams.');
     process.exit(2);
   }
 }

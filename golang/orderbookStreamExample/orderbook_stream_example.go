@@ -677,6 +677,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, "-all is only supported for bbo, l2-diff, l4-updates, and tpsl. Use -coin for l2 or l4.")
 		os.Exit(2)
 	}
+	coins := splitCoins(*coin, *allCoins)
+	if !*allCoins && len(coins) == 0 {
+		fmt.Fprintln(os.Stderr, "-coin must include at least one symbol. Use -all to subscribe to every eligible coin on multi-coin streams.")
+		os.Exit(2)
+	}
 
 	fmt.Println("\n" + strings.Repeat("=", 60))
 	fmt.Println("Hyperliquid Orderbook Stream Example")
@@ -699,8 +704,7 @@ func main() {
 	}
 
 	var err error
-	coins := splitCoins(*coin, *allCoins)
-	singleCoin := "BTC"
+	singleCoin := ""
 	if len(coins) > 0 {
 		singleCoin = coins[0]
 	}
