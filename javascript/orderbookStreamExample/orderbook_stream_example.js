@@ -42,6 +42,7 @@ function parseArgs() {
   const coinArg = get('coin', 'BTC');
   return {
     mode: get('mode', 'bbo'),
+    all: args.includes('--all'),
     coins: args.includes('--all') ? [] : coinArg.split(',').map(c => c.trim()).filter(Boolean),
     coin: coinArg.split(',')[0].trim(),
     levels: parseInt(get('levels', '20'), 10),
@@ -50,6 +51,13 @@ function parseArgs() {
     skipInitialSnapshot: args.includes('--skip-initial-snapshot'),
     maxMessages: get('max-messages') ? parseInt(get('max-messages'), 10) : null
   };
+}
+
+function validateArgs(args) {
+  if (args.all && (args.mode === 'l2' || args.mode === 'l4')) {
+    console.error('--all is only supported for bbo, l2-diff, l4-updates, and tpsl. Use --coin for l2 or l4.');
+    process.exit(2);
+  }
 }
 
 function sleep(ms) {
@@ -215,6 +223,7 @@ async function streamTpsl(args) {
 
 async function main() {
   const args = parseArgs();
+  validateArgs(args);
 
   console.log('Hyperliquid Orderbook Stream Example');
   console.log(`Endpoint: ${GRPC_ENDPOINT}`);

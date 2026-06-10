@@ -673,6 +673,11 @@ func main() {
 
 	flag.Parse()
 
+	if *allCoins && (*mode == "l2" || *mode == "l4") {
+		fmt.Fprintln(os.Stderr, "-all is only supported for bbo, l2-diff, l4-updates, and tpsl. Use -coin for l2 or l4.")
+		os.Exit(2)
+	}
+
 	fmt.Println("\n" + strings.Repeat("=", 60))
 	fmt.Println("Hyperliquid Orderbook Stream Example")
 	fmt.Printf("Endpoint: %s\n", grpcEndpoint)

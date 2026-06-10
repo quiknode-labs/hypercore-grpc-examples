@@ -628,6 +628,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    if all && (mode == "l2" || mode == "l4") {
+        eprintln!("--all is only supported for bbo, l2-diff, l4-updates, and tpsl. Use --coin for l2 or l4.");
+        std::process::exit(2);
+    }
+
     println!("\n{}", "=".repeat(60));
     println!("Hyperliquid Orderbook Stream Example");
     println!("Endpoint: {}", grpc_endpoint());

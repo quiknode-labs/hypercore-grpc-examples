@@ -240,6 +240,9 @@ def parse_args():
     parser.add_argument("--max-messages", type=int, default=None, help="Stop after N messages")
     args = parser.parse_args()
 
+    if args.all and args.mode in {"l2", "l4"}:
+        parser.error("--all is only supported for bbo, l2-diff, l4-updates, and tpsl. Use --coin for l2 or l4.")
+
     args.coins = [] if args.all else [coin.strip() for coin in args.coin.split(",") if coin.strip()]
     args.coin = args.coins[0] if args.coins else "BTC"
     return args
