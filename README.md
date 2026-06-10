@@ -66,7 +66,7 @@ node orderbook_stream_example.js --mode=bbo --coin=BTC --max-messages=5
 
 ## Testnet Priority Mempool
 
-Priority transactions can be observed on the testnet-only `MEMPOOL_TXS` stream. The Python priority example starts a gRPC watcher against your QuickNode testnet endpoint and prints mempool payloads that contain priority grouping.
+Priority transactions can be observed on the testnet-only `MEMPOOL_TXS` stream. Each priority example starts a gRPC watcher against your QuickNode testnet endpoint and prints mempool payloads that contain priority grouping.
 
 ```bash
 cd python/priorityOrderExample
@@ -79,7 +79,12 @@ export AUTH_TOKEN="YOUR_QUICKNODE_TOKEN"
 python watch_priority_mempool.py --max-messages 5
 ```
 
-See [python/priorityOrderExample](python/priorityOrderExample/README.md) for priority-only filtering and all-mempool mode.
+Priority examples are available in:
+
+- `javascript/priorityOrderExample/`
+- `python/priorityOrderExample/`
+- `golang/priorityOrderExample/`
+- `rust/src/priorityOrderExample/`
 
 ## Filtering
 

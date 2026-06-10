@@ -1,0 +1,16 @@
+{
+  "name": "priority-order-example",
+  "version": "1.0.0",
+  "description": "Watch Hyperliquid testnet priority mempool transactions via QuickNode gRPC",
+  "main": "watch_priority_mempool.js",
+  "scripts": {
+    "start": "node watch_priority_mempool.js",
+    "watch": "node watch_priority_mempool.js --max-messages=5"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.9.0",
+    "@grpc/proto-loader": "^0.7.0",
+    "@mongodb-js/zstd": "^1.2.0"
+  },
+  "license": "MIT"
+}

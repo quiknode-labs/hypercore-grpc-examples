@@ -16,7 +16,7 @@ Main streaming service for blockchain data:
 #### MEMPOOL_TXS
 - Testnet-only stream type
 - Emits mempool transactions, including priority order submissions
-- See `python/priorityOrderExample/` for a runnable priority transaction watcher
+- See the `priorityOrderExample` directories for runnable priority transaction watchers in JavaScript, Python, Go, and Rust
 
 ### orderbook.proto
 
@@ -103,7 +103,10 @@ See the language-specific example directories:
 - `python/orderbookStreamExample/`
 - `python/priorityOrderExample/`
 - `javascript/orderbookStreamExample/`
+- `javascript/priorityOrderExample/`
 - `golang/orderbookStreamExample/`
+- `golang/priorityOrderExample/`
 - `rust/src/orderbookStreamExample/`
+- `rust/src/priorityOrderExample/`
 
 For runnable examples using a QuickNode endpoint, see `docs/orderbook-streaming.md`.

@@ -19,6 +19,10 @@ path = "src/replicaCmdsOnS3Example/s3_blocks_backfill.rs"
 name = "orderbookStreamExample"
 path = "src/orderbookStreamExample/orderbook_stream_example.rs"
 
+[[bin]]
+name = "priorityOrderExample"
+path = "src/priorityOrderExample/watch_priority_mempool.rs"
+
 [dependencies]
 tokio = { version = "1.35", features = ["full"] }
 tokio-stream = "0.1"
