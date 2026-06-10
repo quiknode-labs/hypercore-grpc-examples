@@ -91,11 +91,12 @@ def consume_with_reconnect(
     max_messages: Optional[int],
 ):
     msg_count = 0
+    data_loss_count = 0
 
-    for attempt in range(MAX_RETRIES + 1):
-        if attempt > 0:
-            delay = BASE_DELAY_SECONDS * (2 ** (attempt - 1))
-            print(f"Reconnecting {label} after DATA_LOSS in {delay}s (attempt {attempt + 1}/{MAX_RETRIES + 1})")
+    while data_loss_count <= MAX_RETRIES:
+        if data_loss_count > 0:
+            delay = BASE_DELAY_SECONDS * (2 ** (data_loss_count - 1))
+            print(f"Reconnecting {label} after DATA_LOSS in {delay}s (attempt {data_loss_count + 1}/{MAX_RETRIES + 1})")
             time.sleep(delay)
 
         channel = create_channel()
@@ -103,6 +104,7 @@ def consume_with_reconnect(
 
         try:
             for update in make_stream(stub):
+                data_loss_count = 0
                 msg_count += 1
                 handle_update(update, msg_count)
 
@@ -112,6 +114,7 @@ def consume_with_reconnect(
             return
         except grpc.RpcError as exc:
             if exc.code() == grpc.StatusCode.DATA_LOSS:
+                data_loss_count += 1
                 channel.close()
                 continue
             raise

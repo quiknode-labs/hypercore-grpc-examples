@@ -100,11 +100,12 @@ async function consumeWithReconnect(label, makeCall, onData, maxMessages = null)
   const maxRetries = 10;
   const baseDelayMs = 2000;
   let msgCount = 0;
+  let dataLossCount = 0;
 
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    if (attempt > 0) {
-      const delay = baseDelayMs * Math.pow(2, attempt - 1);
-      console.log(`Reconnecting ${label} after DATA_LOSS in ${delay / 1000}s (attempt ${attempt + 1}/${maxRetries + 1})`);
+  while (dataLossCount <= maxRetries) {
+    if (dataLossCount > 0) {
+      const delay = baseDelayMs * Math.pow(2, dataLossCount - 1);
+      console.log(`Reconnecting ${label} after DATA_LOSS in ${delay / 1000}s (attempt ${dataLossCount + 1}/${maxRetries + 1})`);
       await sleep(delay);
     }
 
@@ -112,6 +113,7 @@ async function consumeWithReconnect(label, makeCall, onData, maxMessages = null)
       const call = makeCall();
 
       call.on('data', (update) => {
+        dataLossCount = 0;
         msgCount += 1;
         onData(update, msgCount);
 
@@ -133,7 +135,8 @@ async function consumeWithReconnect(label, makeCall, onData, maxMessages = null)
       call.on('end', () => resolve('done'));
     });
 
-    if (result !== 'data_loss') return;
+    if (result === 'done') return;
+    dataLossCount += 1;
   }
 
   throw new Error(`${label} exceeded max reconnect attempts`);

@@ -155,6 +155,9 @@ func streamL2Orderbook(coin string, nLevels uint32, nSigFigs *uint32, mantissa *
 			}
 
 			totalMsgCount++
+			if retryCount > 0 {
+				retryCount = 0
+			}
 			if totalMsgCount == 1 {
 				fmt.Println("✓ First L2 update received!")
 				fmt.Println()
@@ -263,6 +266,9 @@ func streamBbo(coins []string, maxMessages int) error {
 			}
 
 			msgCount++
+			if retryCount > 0 {
+				retryCount = 0
+			}
 			fmt.Printf("[%d] BBO %s block=%d bid=%s ask=%s\n",
 				msgCount, update.Coin, update.BlockNumber, levelText(update.Bid), levelText(update.Ask))
 
@@ -334,6 +340,9 @@ func streamL2BookDiff(coins []string, nLevels uint32, nSigFigs *uint32, mantissa
 			}
 
 			msgCount++
+			if retryCount > 0 {
+				retryCount = 0
+			}
 			fmt.Printf("[%d] L2 diff height=%d snapshot=%t coins=%d\n", msgCount, update.Height, update.Snapshot, len(update.Diffs))
 			for i, diff := range update.Diffs {
 				if i >= 5 {
@@ -404,6 +413,9 @@ func streamL4BookUpdates(coins []string, maxMessages int) error {
 			}
 
 			msgCount++
+			if retryCount > 0 {
+				retryCount = 0
+			}
 			fmt.Printf("[%d] L4 updates height=%d snapshot=%t diffs=%d\n", msgCount, update.Height, update.Snapshot, len(update.Diffs))
 			for i, diff := range update.Diffs {
 				if i >= 5 {
@@ -474,6 +486,9 @@ func streamTpslUpdates(coins []string, maxMessages int) error {
 			}
 
 			msgCount++
+			if retryCount > 0 {
+				retryCount = 0
+			}
 			fmt.Printf("[%d] TP/SL height=%d snapshot=%t diffs=%d\n", msgCount, update.Height, update.Snapshot, len(update.Diffs))
 			for i, diff := range update.Diffs {
 				if i >= 5 {
@@ -565,6 +580,9 @@ func streamL4Orderbook(coin string, maxMessages int) error {
 			}
 
 			totalMsgCount++
+			if retryCount > 0 {
+				retryCount = 0
+			}
 
 			if snapshot := update.GetSnapshot(); snapshot != nil {
 				snapshotReceived = true
