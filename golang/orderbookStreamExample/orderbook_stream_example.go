@@ -79,7 +79,7 @@ func levelText(level *pb.L2Level) string {
 	return fmt.Sprintf("%s / %s (%d)", level.Px, level.Sz, level.N)
 }
 
-func streamL2Orderbook(coin string, nLevels uint32, nSigFigs *uint32, mantissa *uint64) error {
+func streamL2Orderbook(coin string, nLevels uint32, nSigFigs *uint32, mantissa *uint64, maxMessages int) error {
 	fmt.Println(strings.Repeat("=", 60))
 	fmt.Printf("Streaming L2 Orderbook for %s\n", coin)
 	fmt.Printf("Levels: %d\n", nLevels)
@@ -93,6 +93,7 @@ func streamL2Orderbook(coin string, nLevels uint32, nSigFigs *uint32, mantissa *
 	fmt.Println(strings.Repeat("=", 60) + "\n")
 
 	retryCount := 0
+	totalMsgCount := 0
 
 	for retryCount < maxRetries {
 		creds := credentials.NewClientTLSFromCert(nil, "")
@@ -125,7 +126,6 @@ func streamL2Orderbook(coin string, nLevels uint32, nSigFigs *uint32, mantissa *
 			return fmt.Errorf("failed to start stream: %w", err)
 		}
 
-		msgCount := 0
 		shouldRetry := false
 
 		for {
@@ -154,8 +154,8 @@ func streamL2Orderbook(coin string, nLevels uint32, nSigFigs *uint32, mantissa *
 				return fmt.Errorf("stream error: %w", err)
 			}
 
-			msgCount++
-			if msgCount == 1 {
+			totalMsgCount++
+			if totalMsgCount == 1 {
 				fmt.Println("✓ First L2 update received!")
 				fmt.Println()
 				retryCount = 0 // Reset on success
@@ -200,7 +200,12 @@ func streamL2Orderbook(coin string, nLevels uint32, nSigFigs *uint32, mantissa *
 				}
 			}
 
-			fmt.Printf("\n  Messages received: %d\n", msgCount)
+			fmt.Printf("\n  Messages received: %d\n", totalMsgCount)
+			if maxMessages > 0 && totalMsgCount >= maxMessages {
+				fmt.Printf("\nReached max messages (%d), stopping...\n", maxMessages)
+				conn.Close()
+				return nil
+			}
 		}
 
 		conn.Close()
@@ -709,7 +714,7 @@ func main() {
 		singleCoin = coins[0]
 	}
 	if *mode == "l2" {
-		err = streamL2Orderbook(singleCoin, uint32(*levels), nSigFigs, mantissaVal)
+		err = streamL2Orderbook(singleCoin, uint32(*levels), nSigFigs, mantissaVal, *maxMessages)
 	} else if *mode == "l4" {
 		err = streamL4Orderbook(singleCoin, *maxMessages)
 	} else if *mode == "bbo" {

@@ -62,7 +62,7 @@ fn level_text(level: Option<&hyperliquid::L2Level>) -> String {
     }
 }
 
-async fn stream_l2_orderbook(coin: &str, n_levels: u32, n_sig_figs: Option<u32>, mantissa: Option<u64>) -> Result<(), Box<dyn std::error::Error>> {
+async fn stream_l2_orderbook(coin: &str, n_levels: u32, n_sig_figs: Option<u32>, mantissa: Option<u64>, max_messages: Option<usize>) -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", "=".repeat(60));
     println!("Streaming L2 Orderbook for {}", coin);
     println!("Levels: {}", n_levels);
@@ -76,6 +76,7 @@ async fn stream_l2_orderbook(coin: &str, n_levels: u32, n_sig_figs: Option<u32>,
     println!("{}\n", "=".repeat(60));
 
     let mut retry_count = 0;
+    let mut total_msg_count = 0usize;
 
     while retry_count < MAX_RETRIES {
         let endpoint = grpc_endpoint();
@@ -112,15 +113,14 @@ async fn stream_l2_orderbook(coin: &str, n_levels: u32, n_sig_figs: Option<u32>,
             }
         };
 
-        let mut msg_count = 0;
         let mut should_retry = false;
 
         loop {
             match stream.message().await {
                 Ok(Some(update)) => {
-                    msg_count += 1;
+                    total_msg_count += 1;
 
-                    if msg_count == 1 {
+                    if total_msg_count == 1 {
                         println!("✓ First L2 update received!\n");
                         retry_count = 0; // Reset on success
                     }
@@ -155,7 +155,13 @@ async fn stream_l2_orderbook(coin: &str, n_levels: u32, n_sig_figs: Option<u32>,
                         }
                     }
 
-                    println!("\n  Messages received: {}", msg_count);
+                    println!("\n  Messages received: {}", total_msg_count);
+                    if let Some(max) = max_messages {
+                        if total_msg_count >= max {
+                            println!("\nReached max messages ({}), stopping...", max);
+                            return Ok(());
+                        }
+                    }
                 }
                 Ok(None) => {
                     println!("\nStream ended");
@@ -651,7 +657,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let single_coin = coins.first().map(String::as_str).unwrap_or("");
 
     match mode {
-        "l2" => stream_l2_orderbook(single_coin, levels, n_sig_figs, mantissa).await,
+        "l2" => stream_l2_orderbook(single_coin, levels, n_sig_figs, mantissa, max_messages).await,
         "l4" => stream_l4_orderbook(single_coin, max_messages).await,
         "bbo" => stream_bbo(coins, max_messages).await,
         "l2-diff" => stream_l2_book_diff(coins, levels, n_sig_figs, mantissa, skip_initial_snapshot, max_messages).await,
