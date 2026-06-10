@@ -14,6 +14,7 @@ path = "src/grpcFilterExample/filter_example.rs"
 [[bin]]
 name = "s3_blocks_backfill"
 path = "src/replicaCmdsOnS3Example/s3_blocks_backfill.rs"
+required-features = ["s3"]
 
 [[bin]]
 name = "orderbookStreamExample"
@@ -32,8 +33,12 @@ zstd = "0.13"
 serde_json = "1.0"
 clap = { version = "4.4", features = ["derive"] }
 chrono = "0.4"
-aws-config = "1.0"
-aws-sdk-s3 = "1.0"
+aws-config = { version = "1.0", optional = true }
+aws-sdk-s3 = { version = "1.0", optional = true }
+
+[features]
+default = []
+s3 = ["dep:aws-config", "dep:aws-sdk-s3"]
 
 [build-dependencies]
 tonic-build = "0.10"

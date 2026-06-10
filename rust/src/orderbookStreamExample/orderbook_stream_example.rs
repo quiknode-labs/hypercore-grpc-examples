@@ -1,19 +1,23 @@
 // Orderbook Stream Example - Stream orderbook data via QuickNode gRPC
 use std::time::Duration;
 use tonic::transport::{Channel, ClientTlsConfig};
-use tonic::{metadata::MetadataValue, Request, Status};
+use tonic::{metadata::MetadataValue, Request};
 
 pub mod hyperliquid {
     tonic::include_proto!("hyperliquid");
 }
 
 use hyperliquid::order_book_streaming_client::OrderBookStreamingClient;
-use hyperliquid::{BboBookRequest, L2BookDiffRequest, L2BookRequest, L4BookRequest, L4BookUpdatesRequest, TpslUpdatesRequest};
+use hyperliquid::{
+    BboBookRequest, L2BookDiffRequest, L2BookRequest, L4BookRequest, L4BookUpdatesRequest,
+    TpslUpdatesRequest,
+};
 
 // Mainnet: "https://your-endpoint.hype-mainnet.quiknode.pro:10000"
 // Testnet: "https://your-endpoint.hype-testnet.quiknode.pro:10000"
 const DEFAULT_GRPC_ENDPOINT: &str = "https://your-endpoint.hype-mainnet.quiknode.pro:10000";
 const DEFAULT_AUTH_TOKEN: &str = "your-quicknode-token";
+const MAX_GRPC_MESSAGE_SIZE: usize = 100 * 1024 * 1024;
 const MAX_RETRIES: usize = 10;
 const BASE_DELAY_SECS: u64 = 2;
 
@@ -27,12 +31,13 @@ fn auth_token() -> String {
         .unwrap_or_else(|_| DEFAULT_AUTH_TOKEN.to_string())
 }
 
-async fn orderbook_client() -> Result<OrderBookStreamingClient<Channel>, Box<dyn std::error::Error>> {
+async fn orderbook_client() -> Result<OrderBookStreamingClient<Channel>, Box<dyn std::error::Error>>
+{
     let channel = Channel::from_shared(grpc_endpoint())?
         .tls_config(ClientTlsConfig::new())?
         .connect()
         .await?;
-    Ok(OrderBookStreamingClient::new(channel))
+    Ok(OrderBookStreamingClient::new(channel).max_decoding_message_size(MAX_GRPC_MESSAGE_SIZE))
 }
 
 fn with_auth<T>(message: T) -> Result<Request<T>, Box<dyn std::error::Error>> {
@@ -62,7 +67,13 @@ fn level_text(level: Option<&hyperliquid::L2Level>) -> String {
     }
 }
 
-async fn stream_l2_orderbook(coin: &str, n_levels: u32, n_sig_figs: Option<u32>, mantissa: Option<u64>, max_messages: Option<usize>) -> Result<(), Box<dyn std::error::Error>> {
+async fn stream_l2_orderbook(
+    coin: &str,
+    n_levels: u32,
+    n_sig_figs: Option<u32>,
+    mantissa: Option<u64>,
+    max_messages: Option<usize>,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", "=".repeat(60));
     println!("Streaming L2 Orderbook for {}", coin);
     println!("Levels: {}", n_levels);
@@ -85,7 +96,8 @@ async fn stream_l2_orderbook(coin: &str, n_levels: u32, n_sig_figs: Option<u32>,
             .connect()
             .await?;
 
-        let mut client = OrderBookStreamingClient::new(channel);
+        let mut client =
+            OrderBookStreamingClient::new(channel).max_decoding_message_size(MAX_GRPC_MESSAGE_SIZE);
 
         let request = L2BookRequest {
             coin: coin.to_string(),
@@ -95,7 +107,11 @@ async fn stream_l2_orderbook(coin: &str, n_levels: u32, n_sig_figs: Option<u32>,
         };
 
         if retry_count > 0 {
-            println!("\n🔄 Reconnecting (attempt {}/{})...", retry_count + 1, MAX_RETRIES);
+            println!(
+                "\n🔄 Reconnecting (attempt {}/{})...",
+                retry_count + 1,
+                MAX_RETRIES
+            );
         } else {
             println!("Connecting to {}...", endpoint);
         }
@@ -129,7 +145,10 @@ async fn stream_l2_orderbook(coin: &str, n_levels: u32, n_sig_figs: Option<u32>,
 
                     // Display orderbook
                     println!("\n{}", "─".repeat(60));
-                    println!("Block: {} | Time: {} | Coin: {}", update.block_number, update.time, update.coin);
+                    println!(
+                        "Block: {} | Time: {} | Coin: {}",
+                        update.block_number, update.time, update.coin
+                    );
                     println!("{}", "─".repeat(60));
 
                     // Display asks (reversed)
@@ -137,14 +156,20 @@ async fn stream_l2_orderbook(coin: &str, n_levels: u32, n_sig_figs: Option<u32>,
                         println!("\n  ASKS:");
                         let ask_count = update.asks.len().min(10);
                         for level in update.asks.iter().take(ask_count).rev() {
-                            println!("    {:>12} | {:>12} | ({} orders)", level.px, level.sz, level.n);
+                            println!(
+                                "    {:>12} | {:>12} | ({} orders)",
+                                level.px, level.sz, level.n
+                            );
                         }
                     }
 
                     // Display spread
                     if !update.bids.is_empty() && !update.asks.is_empty() {
                         println!("\n  {}", "─".repeat(44));
-                        println!("  SPREAD: (best bid: {}, best ask: {})", update.bids[0].px, update.asks[0].px);
+                        println!(
+                            "  SPREAD: (best bid: {}, best ask: {})",
+                            update.bids[0].px, update.asks[0].px
+                        );
                         println!("  {}", "─".repeat(44));
                     }
 
@@ -153,7 +178,10 @@ async fn stream_l2_orderbook(coin: &str, n_levels: u32, n_sig_figs: Option<u32>,
                         println!("\n  BIDS:");
                         let bid_count = update.bids.len().min(10);
                         for level in update.bids.iter().take(bid_count) {
-                            println!("    {:>12} | {:>12} | ({} orders)", level.px, level.sz, level.n);
+                            println!(
+                                "    {:>12} | {:>12} | ({} orders)",
+                                level.px, level.sz, level.n
+                            );
                         }
                     }
 
@@ -199,7 +227,10 @@ async fn stream_l2_orderbook(coin: &str, n_levels: u32, n_sig_figs: Option<u32>,
     Ok(())
 }
 
-async fn stream_bbo(coins: Vec<String>, max_messages: Option<usize>) -> Result<(), Box<dyn std::error::Error>> {
+async fn stream_bbo(
+    coins: Vec<String>,
+    max_messages: Option<usize>,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", "=".repeat(60));
     if coins.is_empty() {
         println!("Streaming BBO for all eligible coins");
@@ -213,8 +244,13 @@ async fn stream_bbo(coins: Vec<String>, max_messages: Option<usize>) -> Result<(
 
     while retry_count < MAX_RETRIES {
         let mut client = orderbook_client().await?;
-        let request = BboBookRequest { coins: coins.clone() };
-        let mut stream = client.stream_bbo_book(with_auth(request)?).await?.into_inner();
+        let request = BboBookRequest {
+            coins: coins.clone(),
+        };
+        let mut stream = client
+            .stream_bbo_book(with_auth(request)?)
+            .await?
+            .into_inner();
         let mut should_retry = false;
 
         loop {
@@ -224,8 +260,14 @@ async fn stream_bbo(coins: Vec<String>, max_messages: Option<usize>) -> Result<(
                     if retry_count > 0 {
                         retry_count = 0;
                     }
-                    println!("[{}] BBO {} block={} bid={} ask={}",
-                        msg_count, update.coin, update.block_number, level_text(update.bid.as_ref()), level_text(update.ask.as_ref()));
+                    println!(
+                        "[{}] BBO {} block={} bid={} ask={}",
+                        msg_count,
+                        update.coin,
+                        update.block_number,
+                        level_text(update.bid.as_ref()),
+                        level_text(update.ask.as_ref())
+                    );
 
                     if let Some(max) = max_messages {
                         if msg_count >= max {
@@ -258,7 +300,14 @@ async fn stream_bbo(coins: Vec<String>, max_messages: Option<usize>) -> Result<(
     Ok(())
 }
 
-async fn stream_l2_book_diff(coins: Vec<String>, n_levels: u32, n_sig_figs: Option<u32>, mantissa: Option<u64>, skip_initial_snapshot: bool, max_messages: Option<usize>) -> Result<(), Box<dyn std::error::Error>> {
+async fn stream_l2_book_diff(
+    coins: Vec<String>,
+    n_levels: u32,
+    n_sig_figs: Option<u32>,
+    mantissa: Option<u64>,
+    skip_initial_snapshot: bool,
+    max_messages: Option<usize>,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", "=".repeat(60));
     if coins.is_empty() {
         println!("Streaming L2 Book Diffs for all eligible coins");
@@ -279,7 +328,10 @@ async fn stream_l2_book_diff(coins: Vec<String>, n_levels: u32, n_sig_figs: Opti
             mantissa,
             skip_initial_snapshot,
         };
-        let mut stream = client.stream_l2_book_diff(with_auth(request)?).await?.into_inner();
+        let mut stream = client
+            .stream_l2_book_diff(with_auth(request)?)
+            .await?
+            .into_inner();
         let mut should_retry = false;
 
         loop {
@@ -289,10 +341,23 @@ async fn stream_l2_book_diff(coins: Vec<String>, n_levels: u32, n_sig_figs: Opti
                     if retry_count > 0 {
                         retry_count = 0;
                     }
-                    println!("[{}] L2 diff height={} snapshot={} coins={}", msg_count, update.height, update.snapshot, update.diffs.len());
+                    println!(
+                        "[{}] L2 diff height={} snapshot={} coins={}",
+                        msg_count,
+                        update.height,
+                        update.snapshot,
+                        update.diffs.len()
+                    );
                     for diff in update.diffs.iter().take(5) {
-                        println!("  {} seq={} prev_seq={} snapshot={} bid_changes={} ask_changes={}",
-                            diff.coin, diff.seq, diff.prev_seq, diff.snapshot, diff.bids.len(), diff.asks.len());
+                        println!(
+                            "  {} seq={} prev_seq={} snapshot={} bid_changes={} ask_changes={}",
+                            diff.coin,
+                            diff.seq,
+                            diff.prev_seq,
+                            diff.snapshot,
+                            diff.bids.len(),
+                            diff.asks.len()
+                        );
                     }
 
                     if let Some(max) = max_messages {
@@ -326,7 +391,10 @@ async fn stream_l2_book_diff(coins: Vec<String>, n_levels: u32, n_sig_figs: Opti
     Ok(())
 }
 
-async fn stream_l4_book_updates(coins: Vec<String>, max_messages: Option<usize>) -> Result<(), Box<dyn std::error::Error>> {
+async fn stream_l4_book_updates(
+    coins: Vec<String>,
+    max_messages: Option<usize>,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", "=".repeat(60));
     if coins.is_empty() {
         println!("Streaming L4 Book Updates for all eligible coins");
@@ -340,8 +408,13 @@ async fn stream_l4_book_updates(coins: Vec<String>, max_messages: Option<usize>)
 
     while retry_count < MAX_RETRIES {
         let mut client = orderbook_client().await?;
-        let request = L4BookUpdatesRequest { coins: coins.clone() };
-        let mut stream = client.stream_l4_book_updates(with_auth(request)?).await?.into_inner();
+        let request = L4BookUpdatesRequest {
+            coins: coins.clone(),
+        };
+        let mut stream = client
+            .stream_l4_book_updates(with_auth(request)?)
+            .await?
+            .into_inner();
         let mut should_retry = false;
 
         loop {
@@ -351,10 +424,18 @@ async fn stream_l4_book_updates(coins: Vec<String>, max_messages: Option<usize>)
                     if retry_count > 0 {
                         retry_count = 0;
                     }
-                    println!("[{}] L4 updates height={} snapshot={} diffs={}", msg_count, update.height, update.snapshot, update.diffs.len());
+                    println!(
+                        "[{}] L4 updates height={} snapshot={} diffs={}",
+                        msg_count,
+                        update.height,
+                        update.snapshot,
+                        update.diffs.len()
+                    );
                     for diff in update.diffs.iter().take(5) {
-                        println!("  type={} {} oid={} side={} px={} sz={}",
-                            diff.diff_type, diff.coin, diff.oid, diff.side, diff.px, diff.sz);
+                        println!(
+                            "  type={} {} oid={} side={} px={} sz={}",
+                            diff.diff_type, diff.coin, diff.oid, diff.side, diff.px, diff.sz
+                        );
                     }
 
                     if let Some(max) = max_messages {
@@ -369,7 +450,10 @@ async fn stream_l4_book_updates(coins: Vec<String>, max_messages: Option<usize>)
                         retry_count += 1;
                         if retry_count < MAX_RETRIES {
                             let delay = BASE_DELAY_SECS * 2_u64.pow((retry_count - 1) as u32);
-                            println!("DATA_LOSS from L4 updates stream; reconnecting in {}s", delay);
+                            println!(
+                                "DATA_LOSS from L4 updates stream; reconnecting in {}s",
+                                delay
+                            );
                             tokio::time::sleep(Duration::from_secs(delay)).await;
                             should_retry = true;
                             break;
@@ -388,7 +472,10 @@ async fn stream_l4_book_updates(coins: Vec<String>, max_messages: Option<usize>)
     Ok(())
 }
 
-async fn stream_tpsl_updates(coins: Vec<String>, max_messages: Option<usize>) -> Result<(), Box<dyn std::error::Error>> {
+async fn stream_tpsl_updates(
+    coins: Vec<String>,
+    max_messages: Option<usize>,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", "=".repeat(60));
     if coins.is_empty() {
         println!("Streaming TP/SL Updates for all perp coins");
@@ -402,8 +489,13 @@ async fn stream_tpsl_updates(coins: Vec<String>, max_messages: Option<usize>) ->
 
     while retry_count < MAX_RETRIES {
         let mut client = orderbook_client().await?;
-        let request = TpslUpdatesRequest { coins: coins.clone() };
-        let mut stream = client.stream_tpsl_updates(with_auth(request)?).await?.into_inner();
+        let request = TpslUpdatesRequest {
+            coins: coins.clone(),
+        };
+        let mut stream = client
+            .stream_tpsl_updates(with_auth(request)?)
+            .await?
+            .into_inner();
         let mut should_retry = false;
 
         loop {
@@ -413,10 +505,24 @@ async fn stream_tpsl_updates(coins: Vec<String>, max_messages: Option<usize>) ->
                     if retry_count > 0 {
                         retry_count = 0;
                     }
-                    println!("[{}] TP/SL height={} snapshot={} diffs={}", msg_count, update.height, update.snapshot, update.diffs.len());
+                    println!(
+                        "[{}] TP/SL height={} snapshot={} diffs={}",
+                        msg_count,
+                        update.height,
+                        update.snapshot,
+                        update.diffs.len()
+                    );
                     for diff in update.diffs.iter().take(5) {
-                        println!("  type={} {} oid={} trigger={} limit={} sz={} reason={}",
-                            diff.diff_type, diff.coin, diff.oid, diff.trigger_px, diff.limit_px, diff.sz, diff.reason);
+                        println!(
+                            "  type={} {} oid={} trigger={} limit={} sz={} reason={}",
+                            diff.diff_type,
+                            diff.coin,
+                            diff.oid,
+                            diff.trigger_px,
+                            diff.limit_px,
+                            diff.sz,
+                            diff.reason
+                        );
                     }
 
                     if let Some(max) = max_messages {
@@ -431,7 +537,10 @@ async fn stream_tpsl_updates(coins: Vec<String>, max_messages: Option<usize>) ->
                         retry_count += 1;
                         if retry_count < MAX_RETRIES {
                             let delay = BASE_DELAY_SECS * 2_u64.pow((retry_count - 1) as u32);
-                            println!("DATA_LOSS from TP/SL updates stream; reconnecting in {}s", delay);
+                            println!(
+                                "DATA_LOSS from TP/SL updates stream; reconnecting in {}s",
+                                delay
+                            );
                             tokio::time::sleep(Duration::from_secs(delay)).await;
                             should_retry = true;
                             break;
@@ -450,7 +559,10 @@ async fn stream_tpsl_updates(coins: Vec<String>, max_messages: Option<usize>) ->
     Ok(())
 }
 
-async fn stream_l4_orderbook(coin: &str, max_messages: Option<usize>) -> Result<(), Box<dyn std::error::Error>> {
+async fn stream_l4_orderbook(
+    coin: &str,
+    max_messages: Option<usize>,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", "=".repeat(60));
     println!("Streaming L4 Orderbook for {}", coin);
     println!("Auto-reconnect: true");
@@ -466,14 +578,19 @@ async fn stream_l4_orderbook(coin: &str, max_messages: Option<usize>) -> Result<
             .connect()
             .await?;
 
-        let mut client = OrderBookStreamingClient::new(channel);
+        let mut client =
+            OrderBookStreamingClient::new(channel).max_decoding_message_size(MAX_GRPC_MESSAGE_SIZE);
 
         let request = L4BookRequest {
             coin: coin.to_string(),
         };
 
         if retry_count > 0 {
-            println!("\n🔄 Reconnecting (attempt {}/{})...", retry_count + 1, MAX_RETRIES);
+            println!(
+                "\n🔄 Reconnecting (attempt {}/{})...",
+                retry_count + 1,
+                MAX_RETRIES
+            );
         } else {
             println!("Connecting to {}...", endpoint);
         }
@@ -502,73 +619,89 @@ async fn stream_l4_orderbook(coin: &str, max_messages: Option<usize>) -> Result<
                         retry_count = 0;
                     }
 
-                    if let Some(snapshot) = update.snapshot {
-                        snapshot_received = true;
+                    match update.update {
+                        Some(hyperliquid::l4_book_update::Update::Snapshot(snapshot)) => {
+                            snapshot_received = true;
 
-                        println!("\n✓ L4 Snapshot Received!");
-                        println!("{}", "─".repeat(60));
-                        println!("Coin: {}", snapshot.coin);
-                        println!("Height: {}", snapshot.height);
-                        println!("Time: {}", snapshot.time);
-                        println!("Bids: {} orders", snapshot.bids.len());
-                        println!("Asks: {} orders", snapshot.asks.len());
-                        println!("{}", "─".repeat(60));
+                            println!("\n✓ L4 Snapshot Received!");
+                            println!("{}", "─".repeat(60));
+                            println!("Coin: {}", snapshot.coin);
+                            println!("Height: {}", snapshot.height);
+                            println!("Time: {}", snapshot.time);
+                            println!("Bids: {} orders", snapshot.bids.len());
+                            println!("Asks: {} orders", snapshot.asks.len());
+                            println!("{}", "─".repeat(60));
 
-                        // Sample bids
-                        if !snapshot.bids.is_empty() {
-                            println!("\nSample Bids (first 5):");
-                            for order in snapshot.bids.iter().take(5) {
-                                let user_short = if order.user.len() > 10 {
-                                    format!("{}...", &order.user[..10])
-                                } else {
-                                    order.user.clone()
-                                };
-                                println!("  OID: {} | Price: {} | Size: {} | User: {}",
-                                    order.oid, order.limit_px, order.sz, user_short);
-                            }
-                        }
-
-                        // Sample asks
-                        if !snapshot.asks.is_empty() {
-                            println!("\nSample Asks (first 5):");
-                            for order in snapshot.asks.iter().take(5) {
-                                let user_short = if order.user.len() > 10 {
-                                    format!("{}...", &order.user[..10])
-                                } else {
-                                    order.user.clone()
-                                };
-                                println!("  OID: {} | Price: {} | Size: {} | User: {}",
-                                    order.oid, order.limit_px, order.sz, user_short);
-                            }
-                        }
-
-                    } else if let Some(diff) = update.diff {
-                        if !snapshot_received {
-                            println!("\n⚠ Received diff before snapshot");
-                        }
-
-                        match serde_json::from_str::<serde_json::Value>(&diff.data) {
-                            Ok(diff_data) => {
-                                let order_statuses = diff_data["order_statuses"].as_array()
-                                    .map(|v| v.len()).unwrap_or(0);
-                                let book_diffs = diff_data["book_diffs"].as_array()
-                                    .map(|v| v.len()).unwrap_or(0);
-
-                                println!("\n[Block {}] L4 Diff:", diff.height);
-                                println!("  Time: {}", diff.time);
-                                println!("  Order Statuses: {}", order_statuses);
-                                println!("  Book Diffs: {}", book_diffs);
-
-                                if book_diffs > 0 && book_diffs <= 5 {
-                                    if let Some(diffs_array) = diff_data["book_diffs"].as_array() {
-                                        println!("  Diffs: {}", serde_json::to_string_pretty(diffs_array)?);
-                                    }
+                            // Sample bids
+                            if !snapshot.bids.is_empty() {
+                                println!("\nSample Bids (first 5):");
+                                for order in snapshot.bids.iter().take(5) {
+                                    let user_short = if order.user.len() > 10 {
+                                        format!("{}...", &order.user[..10])
+                                    } else {
+                                        order.user.clone()
+                                    };
+                                    println!(
+                                        "  OID: {} | Price: {} | Size: {} | User: {}",
+                                        order.oid, order.limit_px, order.sz, user_short
+                                    );
                                 }
                             }
-                            Err(e) => {
-                                println!("  Error parsing diff: {}", e);
+
+                            // Sample asks
+                            if !snapshot.asks.is_empty() {
+                                println!("\nSample Asks (first 5):");
+                                for order in snapshot.asks.iter().take(5) {
+                                    let user_short = if order.user.len() > 10 {
+                                        format!("{}...", &order.user[..10])
+                                    } else {
+                                        order.user.clone()
+                                    };
+                                    println!(
+                                        "  OID: {} | Price: {} | Size: {} | User: {}",
+                                        order.oid, order.limit_px, order.sz, user_short
+                                    );
+                                }
                             }
                         }
+                        Some(hyperliquid::l4_book_update::Update::Diff(diff)) => {
+                            if !snapshot_received {
+                                println!("\n⚠ Received diff before snapshot");
+                            }
+
+                            match serde_json::from_str::<serde_json::Value>(&diff.data) {
+                                Ok(diff_data) => {
+                                    let order_statuses = diff_data["order_statuses"]
+                                        .as_array()
+                                        .map(|v| v.len())
+                                        .unwrap_or(0);
+                                    let book_diffs = diff_data["book_diffs"]
+                                        .as_array()
+                                        .map(|v| v.len())
+                                        .unwrap_or(0);
+
+                                    println!("\n[Block {}] L4 Diff:", diff.height);
+                                    println!("  Time: {}", diff.time);
+                                    println!("  Order Statuses: {}", order_statuses);
+                                    println!("  Book Diffs: {}", book_diffs);
+
+                                    if book_diffs > 0 && book_diffs <= 5 {
+                                        if let Some(diffs_array) =
+                                            diff_data["book_diffs"].as_array()
+                                        {
+                                            println!(
+                                                "  Diffs: {}",
+                                                serde_json::to_string_pretty(diffs_array)?
+                                            );
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    println!("  Error parsing diff: {}", e);
+                                }
+                            }
+                        }
+                        None => {}
                     }
 
                     if let Some(max) = max_messages {
@@ -672,7 +805,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "l2" => stream_l2_orderbook(single_coin, levels, n_sig_figs, mantissa, max_messages).await,
         "l4" => stream_l4_orderbook(single_coin, max_messages).await,
         "bbo" => stream_bbo(coins, max_messages).await,
-        "l2-diff" => stream_l2_book_diff(coins, levels, n_sig_figs, mantissa, skip_initial_snapshot, max_messages).await,
+        "l2-diff" => {
+            stream_l2_book_diff(
+                coins,
+                levels,
+                n_sig_figs,
+                mantissa,
+                skip_initial_snapshot,
+                max_messages,
+            )
+            .await
+        }
         "l4-updates" => stream_l4_book_updates(coins, max_messages).await,
         "tpsl" => stream_tpsl_updates(coins, max_messages).await,
         _ => {
