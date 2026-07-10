@@ -162,7 +162,7 @@ def main() -> int:
     print(f"Endpoint: {GRPC_ENDPOINT}")
     if not raw_mempool and not args.include_confirmed:
         print("Server filter: source=mempool_txs (not finalized)")
-    elif not args.all_mempool:
+    elif raw_mempool and not args.all_mempool:
         print("Local filter: priority grouping only")
     if args.contains:
         print(f"Text filters: {args.contains}")
