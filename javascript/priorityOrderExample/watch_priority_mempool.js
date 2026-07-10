@@ -1,10 +1,10 @@
-// Watch live testnet priority mempool transactions from a QuickNode Hyperliquid gRPC endpoint.
+// Watch live priority-fee mempool events from a QuickNode Hyperliquid gRPC endpoint.
 const grpc = require('@grpc/grpc-js');
 const protoLoader = require('@grpc/proto-loader');
 const zstd = require('@mongodb-js/zstd');
 const path = require('path');
 
-const DEFAULT_GRPC_ENDPOINT = 'your-endpoint.hype-testnet.quiknode.pro:10000';
+const DEFAULT_GRPC_ENDPOINT = 'your-endpoint.hype-mainnet.quiknode.pro:10000';
 const DEFAULT_AUTH_TOKEN = 'YOUR_QUICKNODE_TOKEN';
 const GRPC_ENDPOINT = process.env.GRPC_ENDPOINT || DEFAULT_GRPC_ENDPOINT;
 const AUTH_TOKEN = process.env.AUTH_TOKEN || process.env.QN_AUTH_TOKEN || DEFAULT_AUTH_TOKEN;
@@ -35,6 +35,8 @@ function parseArgs() {
   return {
     startBlock: parseInt(get('start-block') || '0', 10),
     contains,
+    includeConfirmed: args.includes('--include-confirmed'),
+    rawMempool: args.includes('--raw-mempool'),
     allMempool: args.includes('--all-mempool'),
     compact: args.includes('--compact'),
     maxMessages: get('max-messages') ? parseInt(get('max-messages'), 10) : null
@@ -68,6 +70,9 @@ function priorityFees(value) {
   if (Array.isArray(value)) {
     value.forEach(item => fees.push(...priorityFees(item)));
   } else if (value && typeof value === 'object') {
+    if (value.source && value.type === 'order' && value.p !== undefined) {
+      fees.push(String(value.p));
+    }
     if (value.grouping && typeof value.grouping === 'object' && value.grouping.p !== undefined) {
       fees.push(String(value.grouping.p));
     }
@@ -94,9 +99,10 @@ function createClient() {
 
 function main() {
   const args = parseArgs();
+  const rawMempool = args.rawMempool || args.allMempool;
 
   if (GRPC_ENDPOINT === DEFAULT_GRPC_ENDPOINT) {
-    console.error('Set GRPC_ENDPOINT to your QuickNode Hyperliquid testnet gRPC endpoint.');
+    console.error('Set GRPC_ENDPOINT to your QuickNode Hyperliquid mainnet or testnet gRPC endpoint.');
     process.exit(2);
   }
   if (AUTH_TOKEN === DEFAULT_AUTH_TOKEN) {
@@ -104,9 +110,19 @@ function main() {
     process.exit(2);
   }
 
-  console.log('Watching testnet MEMPOOL_TXS');
+  if (rawMempool) {
+    console.log('Watching raw MEMPOOL_TXS');
+  } else if (args.includeConfirmed) {
+    console.log('Watching ORDER_PRIORITY events from mempool_txs and replica_cmds');
+  } else {
+    console.log('Watching pre-consensus ORDER_PRIORITY mempool events');
+  }
   console.log(`Endpoint: ${GRPC_ENDPOINT}`);
-  if (!args.allMempool) console.log('Filter: priority grouping only');
+  if (!rawMempool && !args.includeConfirmed) {
+    console.log('Server filter: source=mempool_txs (not finalized)');
+  } else if (rawMempool && !args.allMempool) {
+    console.log('Local filter: priority grouping only');
+  }
   if (args.contains.length) console.log(`Text filters: ${JSON.stringify(args.contains)}`);
 
   const client = createClient();
@@ -119,8 +135,11 @@ function main() {
 
   call.write({
     subscribe: {
-      stream_type: 'MEMPOOL_TXS',
-      start_block: args.startBlock
+      stream_type: rawMempool ? 'MEMPOOL_TXS' : 'ORDER_PRIORITY',
+      start_block: args.startBlock,
+      filters: !rawMempool && !args.includeConfirmed
+        ? { source: { values: ['mempool_txs'] } }
+        : {}
     }
   });
 
@@ -146,12 +165,12 @@ function main() {
     } catch {}
 
     const fees = parsed ? priorityFees(parsed) : [];
-    if (!args.allMempool && fees.length === 0) return;
+    if (rawMempool && !args.allMempool && fees.length === 0) return;
     if (args.maxMessages && printed >= args.maxMessages) return;
 
     printed += 1;
     console.log(`\nBlock ${response.data.block_number} | Timestamp ${response.data.timestamp}`);
-    if (fees.length) console.log(`Priority fee grouping p: ${fees.join(', ')}`);
+    if (fees.length) console.log(`Priority p: ${fees.join(', ')}`);
     if (args.compact) {
       console.log(text.slice(0, 1000));
     } else if (parsed) {

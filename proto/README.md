@@ -11,12 +11,28 @@ Main streaming service for blockchain data:
 - **Methods**:
   - `StreamData` - Bi-directional streaming for trades, orders, book updates, etc.
   - `Ping` - Health check
-- **Stream Types**: TRADES, ORDERS, BOOK_UPDATES, TWAP, EVENTS, BLOCKS, WRITER_ACTIONS, MEMPOOL_TXS
+- **Stream Types**: TRADES, ORDERS, BOOK_UPDATES, TWAP, EVENTS, BLOCKS, WRITER_ACTIONS, MEMPOOL_TXS, ORDER_PRIORITY, GOSSIP_PRIORITY
 
 #### MEMPOOL_TXS
-- Testnet-only stream type
-- Emits mempool transactions, including priority order submissions
+- Available on mainnet and testnet
+- Emits raw pre-consensus mempool transactions
 - See the `priorityOrderExample` directories for runnable priority transaction watchers in JavaScript, Python, Go, and Rust
+
+#### ORDER_PRIORITY
+- Derived stream for normalized order/write priority actions with `grouping.p > 0`
+- Available on mainnet and testnet
+- Use filter `source=mempool_txs` for pre-consensus events; these are not finalized
+- `source=replica_cmds` events are confirmed block-derived events when available
+- Searchable fields include `cloid`, `user`, `tx_hash`, `coin`, `vault`, `source`, and `block_number`
+
+#### GOSSIP_PRIORITY
+- Derived stream for observed `gossipPriorityBid` actions in transaction flow
+- Available on mainnet and testnet
+- Represents gossip/read priority auction bids, not order/write priority
+- Does not measure whether a client connection received prioritized data faster
+- Searchable fields include `user`, `tx_hash`, `ip`, `slot_id`, `source`, and `block_number`
+
+See [Priority Streaming](../docs/priority-streaming.md) for payload fields, examples, and finality semantics.
 
 ### orderbook.proto
 

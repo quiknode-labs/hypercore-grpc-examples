@@ -24,7 +24,7 @@ Both **mainnet** and **testnet** are supported. Set your `GRPC_ENDPOINT` accordi
 | Mainnet | `your-endpoint.hype-mainnet.quiknode.pro:10000` |
 | Testnet | `your-endpoint.hype-testnet.quiknode.pro:10000` |
 
-All stream types are available on both networks, except `MEMPOOL_TXS` which is **testnet-only**.
+All stream types below are available on mainnet and testnet. The endpoint determines which network's node data you receive.
 
 ## Stream Types
 
@@ -37,7 +37,9 @@ All stream types are available on both networks, except `MEMPOOL_TXS` which is *
 | `TWAP` | TWAP orders | Mainnet, Testnet |
 | `BLOCKS` | Raw blocks | Mainnet, Testnet |
 | `WRITER_ACTIONS` | Writer actions | Mainnet, Testnet |
-| `MEMPOOL_TXS` | Testnet mempool transactions, including priority order submissions | Testnet only |
+| `MEMPOOL_TXS` | Raw pre-consensus mempool transactions | Mainnet, Testnet |
+| `ORDER_PRIORITY` | Filterable order/write priority actions with `grouping.p > 0` | Mainnet, Testnet |
+| `GOSSIP_PRIORITY` | Filterable gossip/read priority auction bid actions | Mainnet, Testnet |
 
 ## Orderbook Streaming Methods
 
@@ -64,16 +66,20 @@ export AUTH_TOKEN="YOUR_QUICKNODE_TOKEN"
 node orderbook_stream_example.js --mode=bbo --coin=BTC --max-messages=5
 ```
 
-## Testnet Priority Mempool
+## Priority Streams
 
-Priority transactions can be observed on the testnet-only `MEMPOOL_TXS` stream. Each priority example starts a gRPC watcher against your QuickNode testnet endpoint and prints mempool payloads that contain priority grouping.
+`ORDER_PRIORITY` and `GOSSIP_PRIORITY` are available on mainnet and testnet. `ORDER_PRIORITY` lets customers filter priority orders by fields such as `cloid`, `user`, `tx_hash`, `coin`, and `source`. `GOSSIP_PRIORITY` lets customers filter bid actions by `user`, `tx_hash`, `ip`, `slot_id`, and `source`.
+
+The examples use `source=mempool_txs` by default, so their output is pre-consensus and not finalized. For IOC orders, this is the view of an order trying to move ahead of otherwise similar-time orders in mempool sorting. `GOSSIP_PRIORITY` surfaces the `gossipPriorityBid` action; it does not measure whether a connection received data faster.
+
+Use `--include-confirmed` to also receive confirmed `source=replica_cmds` order-priority events, or `--raw-mempool` to inspect raw `MEMPOOL_TXS` payloads. See [Priority Streaming](docs/priority-streaming.md) for searchable fields, payloads, and network-specific fee behavior.
 
 ```bash
 cd python/priorityOrderExample
 pip install -r requirements.txt
 python -m grpc_tools.protoc -I../../proto --python_out=. --grpc_python_out=. ../../proto/hyperliquid.proto
 
-export GRPC_ENDPOINT="your-endpoint.hype-testnet.quiknode.pro:10000"
+export GRPC_ENDPOINT="your-endpoint.hype-mainnet.quiknode.pro:10000"
 export AUTH_TOKEN="YOUR_QUICKNODE_TOKEN"
 
 python watch_priority_mempool.py --max-messages 5

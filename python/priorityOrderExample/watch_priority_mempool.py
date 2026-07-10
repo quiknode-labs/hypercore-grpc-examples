@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """
-Watch live testnet priority mempool transactions from a QuickNode Hyperliquid
-gRPC endpoint.
+Watch live priority-fee activity from a QuickNode Hyperliquid gRPC endpoint.
 
-The MEMPOOL_TXS stream is testnet-only. By default this example prints only
-transactions that include priority grouping, i.e. an action with
-`grouping: {"p": ...}`.
+By default this example subscribes to the derived ORDER_PRIORITY stream and filters
+for source=mempool_txs. These are pre-consensus mempool signals, not finalized
+orders. Use them to see priority-fee order flow before it lands on-chain.
 """
 
 import argparse
@@ -26,7 +25,7 @@ except ImportError:
     sys.exit(1)
 
 
-DEFAULT_GRPC_ENDPOINT = "your-endpoint.hype-testnet.quiknode.pro:10000"
+DEFAULT_GRPC_ENDPOINT = "your-endpoint.hype-mainnet.quiknode.pro:10000"
 DEFAULT_AUTH_TOKEN = "YOUR_QUICKNODE_TOKEN"
 
 
@@ -74,11 +73,17 @@ def create_channel():
     )
 
 
-def request_generator(start_block: int):
+def request_generator(start_block: int, raw_mempool: bool, include_confirmed: bool):
+    stream_type = "MEMPOOL_TXS" if raw_mempool else "ORDER_PRIORITY"
+    filters = {}
+    if not raw_mempool and not include_confirmed:
+        filters["source"] = pb.FilterValues(values=["mempool_txs"])
+
     yield pb.SubscribeRequest(
         subscribe=pb.StreamSubscribe(
-            stream_type=pb.StreamType.Value("MEMPOOL_TXS"),
+            stream_type=pb.StreamType.Value(stream_type),
             start_block=start_block,
+            filters=filters,
         )
     )
 
@@ -94,6 +99,8 @@ def text_matches_filters(text: str, needles: list[str]) -> bool:
 def priority_fees(value) -> list[str]:
     fees = []
     if isinstance(value, dict):
+        if value.get("source") and value.get("type") == "order" and "p" in value:
+            fees.append(str(value["p"]))
         grouping = value.get("grouping")
         if isinstance(grouping, dict) and "p" in grouping:
             fees.append(str(grouping["p"]))
@@ -115,7 +122,7 @@ def parse_json(text: str):
 def print_payload(block_number: int, timestamp: int, text: str, compact: bool, fees: list[str]):
     print(f"\nBlock {block_number} | Timestamp {timestamp}")
     if fees:
-        print(f"Priority fee grouping p: {', '.join(fees)}")
+        print(f"Priority p: {', '.join(fees)}")
     if compact:
         print(text[:1000])
         return
@@ -128,25 +135,35 @@ def print_payload(block_number: int, timestamp: int, text: str, compact: bool, f
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Watch testnet priority MEMPOOL_TXS from a QuickNode Hyperliquid gRPC endpoint.")
+    parser = argparse.ArgumentParser(description="Watch pre-consensus Hyperliquid priority-fee mempool events from a QuickNode gRPC endpoint.")
     parser.add_argument("--start-block", type=int, default=0, help="Start block for the stream. Default 0.")
     parser.add_argument("--contains", action="append", default=[], help="Only print messages containing this text. Can be repeated.")
-    parser.add_argument("--all-mempool", action="store_true", help="Print all MEMPOOL_TXS messages, not only priority transactions.")
+    parser.add_argument("--include-confirmed", action="store_true", help="Also include confirmed ORDER_PRIORITY events from replica_cmds.")
+    parser.add_argument("--raw-mempool", action="store_true", help="Subscribe to raw MEMPOOL_TXS and detect grouping.p locally.")
+    parser.add_argument("--all-mempool", action="store_true", help="With --raw-mempool, print all MEMPOOL_TXS messages, not only priority transactions.")
     parser.add_argument("--max-messages", type=int, help="Stop after printing this many matching messages.")
     parser.add_argument("--compact", action="store_true", help="Print compact payload text instead of pretty JSON.")
     args = parser.parse_args()
+    raw_mempool = args.raw_mempool or args.all_mempool
 
     if GRPC_ENDPOINT == DEFAULT_GRPC_ENDPOINT:
-        print("Set GRPC_ENDPOINT to your QuickNode Hyperliquid testnet gRPC endpoint.", file=sys.stderr)
+        print("Set GRPC_ENDPOINT to your QuickNode Hyperliquid mainnet or testnet gRPC endpoint.", file=sys.stderr)
         return 2
     if AUTH_TOKEN == DEFAULT_AUTH_TOKEN:
         print("Set AUTH_TOKEN to your QuickNode token.", file=sys.stderr)
         return 2
 
-    print("Watching testnet MEMPOOL_TXS")
+    if raw_mempool:
+        print("Watching raw MEMPOOL_TXS")
+    elif args.include_confirmed:
+        print("Watching ORDER_PRIORITY events from mempool_txs and replica_cmds")
+    else:
+        print("Watching pre-consensus ORDER_PRIORITY mempool events")
     print(f"Endpoint: {GRPC_ENDPOINT}")
-    if not args.all_mempool:
-        print("Filter: priority grouping only")
+    if not raw_mempool and not args.include_confirmed:
+        print("Server filter: source=mempool_txs (not finalized)")
+    elif not args.all_mempool:
+        print("Local filter: priority grouping only")
     if args.contains:
         print(f"Text filters: {args.contains}")
 
@@ -156,7 +173,7 @@ def main() -> int:
     printed = 0
 
     try:
-        for response in stub.StreamData(request_generator(args.start_block), metadata=metadata):
+        for response in stub.StreamData(request_generator(args.start_block, raw_mempool, args.include_confirmed), metadata=metadata):
             if response.HasField("pong"):
                 continue
             if not response.HasField("data"):
@@ -169,7 +186,7 @@ def main() -> int:
 
             parsed = parse_json(text)
             fees = priority_fees(parsed) if parsed is not None else []
-            if not args.all_mempool and not fees:
+            if raw_mempool and not args.all_mempool and not fees:
                 continue
 
             printed += 1
