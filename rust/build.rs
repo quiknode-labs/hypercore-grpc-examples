@@ -1,5 +1,7 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tonic_build::compile_protos("../proto/hyperliquid.proto")?;
-    tonic_build::compile_protos("../proto/orderbook.proto")?;
+    tonic_build::configure().compile(
+        &["../proto/hyperliquid.proto", "../proto/orderbook.proto"],
+        &["../proto"],
+    )?;
     Ok(())
 }

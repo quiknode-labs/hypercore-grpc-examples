@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	defaultGrpcEndpoint = "your-endpoint.hype-testnet.quiknode.pro:10000"
+	defaultGrpcEndpoint = "your-endpoint.hype-mainnet.quiknode.pro:10000"
 	defaultAuthToken    = "YOUR_QUICKNODE_TOKEN"
 )
 
@@ -76,6 +76,11 @@ func priorityFees(value interface{}) []string {
 	fees := []string{}
 	switch v := value.(type) {
 	case map[string]interface{}:
+		if _, ok := v["source"]; ok {
+			if eventType, _ := v["type"].(string); eventType == "order" && v["p"] != nil {
+				fees = append(fees, fmt.Sprint(v["p"]))
+			}
+		}
 		if grouping, ok := v["grouping"].(map[string]interface{}); ok {
 			if p, ok := grouping["p"]; ok {
 				fees = append(fees, fmt.Sprint(p))
@@ -107,15 +112,18 @@ func matchesTextFilters(text string, contains []string) bool {
 func main() {
 	startBlock := flag.Uint64("start-block", 0, "Start block for the stream")
 	containsRaw := flag.String("contains", "", "Comma-separated text filters")
-	allMempool := flag.Bool("all-mempool", false, "Print all MEMPOOL_TXS messages, not only priority transactions")
+	includeConfirmed := flag.Bool("include-confirmed", false, "Also include confirmed ORDER_PRIORITY events from replica_cmds")
+	rawMempoolFlag := flag.Bool("raw-mempool", false, "Subscribe to raw MEMPOOL_TXS and detect grouping.p locally")
+	allMempool := flag.Bool("all-mempool", false, "With -raw-mempool, print all MEMPOOL_TXS messages, not only priority transactions")
 	maxMessages := flag.Int("max-messages", 0, "Stop after printing this many matching messages")
 	compact := flag.Bool("compact", false, "Print compact payload text instead of pretty JSON")
 	flag.Parse()
+	rawMempool := *rawMempoolFlag || *allMempool
 
 	endpoint := envOrDefault("GRPC_ENDPOINT", defaultGrpcEndpoint)
 	authToken := envOrDefault("AUTH_TOKEN", envOrDefault("QN_AUTH_TOKEN", defaultAuthToken))
 	if endpoint == defaultGrpcEndpoint {
-		log.Fatal("Set GRPC_ENDPOINT to your QuickNode Hyperliquid testnet gRPC endpoint")
+		log.Fatal("Set GRPC_ENDPOINT to your QuickNode Hyperliquid mainnet or testnet gRPC endpoint")
 	}
 	if authToken == defaultAuthToken {
 		log.Fatal("Set AUTH_TOKEN to your QuickNode token")
@@ -154,11 +162,23 @@ func main() {
 		log.Fatalf("failed to create stream: %v", err)
 	}
 
+	streamType := pb.StreamType_ORDER_PRIORITY
+	filters := map[string]*pb.FilterValues{
+		"source": {Values: []string{"mempool_txs"}},
+	}
+	if rawMempool {
+		streamType = pb.StreamType_MEMPOOL_TXS
+		filters = map[string]*pb.FilterValues{}
+	} else if *includeConfirmed {
+		filters = map[string]*pb.FilterValues{}
+	}
+
 	if err := stream.Send(&pb.SubscribeRequest{
 		Request: &pb.SubscribeRequest_Subscribe{
 			Subscribe: &pb.StreamSubscribe{
-				StreamType: pb.StreamType_MEMPOOL_TXS,
+				StreamType: streamType,
 				StartBlock: *startBlock,
+				Filters:    filters,
 			},
 		},
 	}); err != nil {
@@ -182,10 +202,18 @@ func main() {
 		}
 	}()
 
-	fmt.Println("Watching testnet MEMPOOL_TXS")
+	if rawMempool {
+		fmt.Println("Watching raw MEMPOOL_TXS")
+	} else if *includeConfirmed {
+		fmt.Println("Watching ORDER_PRIORITY events from mempool_txs and replica_cmds")
+	} else {
+		fmt.Println("Watching pre-consensus ORDER_PRIORITY mempool events")
+	}
 	fmt.Printf("Endpoint: %s\n", endpoint)
-	if !*allMempool {
-		fmt.Println("Filter: priority grouping only")
+	if !rawMempool && !*includeConfirmed {
+		fmt.Println("Server filter: source=mempool_txs (not finalized)")
+	} else if rawMempool && !*allMempool {
+		fmt.Println("Local filter: priority grouping only")
 	}
 	if len(contains) > 0 {
 		fmt.Printf("Text filters: %v\n", contains)
@@ -221,14 +249,14 @@ func main() {
 		if parsedOK {
 			fees = priorityFees(parsed)
 		}
-		if !*allMempool && len(fees) == 0 {
+		if rawMempool && !*allMempool && len(fees) == 0 {
 			continue
 		}
 
 		printed++
 		fmt.Printf("\nBlock %d | Timestamp %d\n", dataUpdate.Data.BlockNumber, dataUpdate.Data.Timestamp)
 		if len(fees) > 0 {
-			fmt.Printf("Priority fee grouping p: %s\n", strings.Join(fees, ", "))
+			fmt.Printf("Priority p: %s\n", strings.Join(fees, ", "))
 		}
 		if *compact {
 			if len(text) > 1000 {

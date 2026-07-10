@@ -57,7 +57,9 @@ fn parse_stream_type(s: &str) -> StreamType {
         "TWAP" => StreamType::Twap,
         "BLOCKS" => StreamType::Blocks,
         "WRITER_ACTIONS" => StreamType::WriterActions,
-        "MEMPOOL_TXS" => StreamType::MempoolTxs, // Testnet only
+        "MEMPOOL_TXS" => StreamType::MempoolTxs,
+        "ORDER_PRIORITY" => StreamType::OrderPriority,
+        "GOSSIP_PRIORITY" => StreamType::GossipPriority,
         _ => StreamType::Trades,
     }
 }

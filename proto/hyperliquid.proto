@@ -72,7 +72,9 @@ enum StreamType {
   EVENTS = 5;
   BLOCKS = 6;
   WRITER_ACTIONS = 7;
-  MEMPOOL_TXS = 8; // Testnet-only mempool transactions, including priority order submissions
+  MEMPOOL_TXS = 8; // Pre-consensus mempool transactions
+  ORDER_PRIORITY = 9; // Derived order/write priority actions from mempool and confirmed replica data
+  GOSSIP_PRIORITY = 10; // Derived gossip/read priority bid actions; does not measure delivery latency
 }
 
 message Block {

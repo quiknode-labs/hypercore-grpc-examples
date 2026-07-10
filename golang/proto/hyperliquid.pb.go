@@ -24,40 +24,46 @@ const (
 type StreamType int32
 
 const (
-	StreamType_UNKNOWN        StreamType = 0
-	StreamType_TRADES         StreamType = 1
-	StreamType_ORDERS         StreamType = 2
-	StreamType_BOOK_UPDATES   StreamType = 3
-	StreamType_TWAP           StreamType = 4
-	StreamType_EVENTS         StreamType = 5
-	StreamType_BLOCKS         StreamType = 6
-	StreamType_WRITER_ACTIONS StreamType = 7
-	StreamType_MEMPOOL_TXS    StreamType = 8 // Testnet-only mempool transactions, including priority order submissions
+	StreamType_UNKNOWN         StreamType = 0
+	StreamType_TRADES          StreamType = 1
+	StreamType_ORDERS          StreamType = 2
+	StreamType_BOOK_UPDATES    StreamType = 3
+	StreamType_TWAP            StreamType = 4
+	StreamType_EVENTS          StreamType = 5
+	StreamType_BLOCKS          StreamType = 6
+	StreamType_WRITER_ACTIONS  StreamType = 7
+	StreamType_MEMPOOL_TXS     StreamType = 8  // Pre-consensus mempool transactions
+	StreamType_ORDER_PRIORITY  StreamType = 9  // Derived order/write priority actions from mempool and confirmed replica data
+	StreamType_GOSSIP_PRIORITY StreamType = 10 // Derived gossip/read priority bid actions; does not measure delivery latency
 )
 
 // Enum value maps for StreamType.
 var (
 	StreamType_name = map[int32]string{
-		0: "UNKNOWN",
-		1: "TRADES",
-		2: "ORDERS",
-		3: "BOOK_UPDATES",
-		4: "TWAP",
-		5: "EVENTS",
-		6: "BLOCKS",
-		7: "WRITER_ACTIONS",
-		8: "MEMPOOL_TXS",
+		0:  "UNKNOWN",
+		1:  "TRADES",
+		2:  "ORDERS",
+		3:  "BOOK_UPDATES",
+		4:  "TWAP",
+		5:  "EVENTS",
+		6:  "BLOCKS",
+		7:  "WRITER_ACTIONS",
+		8:  "MEMPOOL_TXS",
+		9:  "ORDER_PRIORITY",
+		10: "GOSSIP_PRIORITY",
 	}
 	StreamType_value = map[string]int32{
-		"UNKNOWN":        0,
-		"TRADES":         1,
-		"ORDERS":         2,
-		"BOOK_UPDATES":   3,
-		"TWAP":           4,
-		"EVENTS":         5,
-		"BLOCKS":         6,
-		"WRITER_ACTIONS": 7,
-		"MEMPOOL_TXS":    8,
+		"UNKNOWN":         0,
+		"TRADES":          1,
+		"ORDERS":          2,
+		"BOOK_UPDATES":    3,
+		"TWAP":            4,
+		"EVENTS":          5,
+		"BLOCKS":          6,
+		"WRITER_ACTIONS":  7,
+		"MEMPOOL_TXS":     8,
+		"ORDER_PRIORITY":  9,
+		"GOSSIP_PRIORITY": 10,
 	}
 )
 
@@ -736,7 +742,7 @@ const file_hyperliquid_proto_rawDesc = "" +
 	"\vPingRequest\x12\x14\n" +
 	"\x05count\x18\x01 \x01(\x05R\x05count\"$\n" +
 	"\fPingResponse\x12\x14\n" +
-	"\x05count\x18\x01 \x01(\x05R\x05count*\x8a\x01\n" +
+	"\x05count\x18\x01 \x01(\x05R\x05count*\xb3\x01\n" +
 	"\n" +
 	"StreamType\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\n" +
@@ -751,7 +757,10 @@ const file_hyperliquid_proto_rawDesc = "" +
 	"\n" +
 	"\x06BLOCKS\x10\x06\x12\x12\n" +
 	"\x0eWRITER_ACTIONS\x10\a\x12\x0f\n" +
-	"\vMEMPOOL_TXS\x10\b2\x97\x01\n" +
+	"\vMEMPOOL_TXS\x10\b\x12\x12\n" +
+	"\x0eORDER_PRIORITY\x10\t\x12\x13\n" +
+	"\x0fGOSSIP_PRIORITY\x10\n" +
+	"2\x97\x01\n" +
 	"\tStreaming\x12M\n" +
 	"\n" +
 	"StreamData\x12\x1d.hyperliquid.SubscribeRequest\x1a\x1c.hyperliquid.SubscribeUpdate(\x010\x01\x12;\n" +

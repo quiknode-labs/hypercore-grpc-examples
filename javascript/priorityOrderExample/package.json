@@ -1,7 +1,7 @@
 {
   "name": "priority-order-example",
   "version": "1.0.0",
-  "description": "Watch Hyperliquid testnet priority mempool transactions via QuickNode gRPC",
+  "description": "Watch Hyperliquid priority mempool transactions via QuickNode gRPC",
   "main": "watch_priority_mempool.js",
   "scripts": {
     "start": "node watch_priority_mempool.js",

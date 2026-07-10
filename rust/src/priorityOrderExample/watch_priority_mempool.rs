@@ -9,11 +9,11 @@ pub mod hyperliquid {
 }
 
 use hyperliquid::{
-    streaming_client::StreamingClient, Ping, StreamSubscribe, StreamType,
+    streaming_client::StreamingClient, FilterValues, Ping, StreamSubscribe, StreamType,
     SubscribeRequest,
 };
 
-const DEFAULT_GRPC_ENDPOINT: &str = "https://your-endpoint.hype-testnet.quiknode.pro:10000";
+const DEFAULT_GRPC_ENDPOINT: &str = "https://your-endpoint.hype-mainnet.quiknode.pro:10000";
 const DEFAULT_AUTH_TOKEN: &str = "YOUR_QUICKNODE_TOKEN";
 const ZSTD_MAGIC: [u8; 4] = [0x28, 0xB5, 0x2F, 0xFD];
 
@@ -48,6 +48,13 @@ fn priority_fees(value: &serde_json::Value) -> Vec<String> {
     let mut fees = Vec::new();
     match value {
         serde_json::Value::Object(map) => {
+            if map.get("source").is_some()
+                && map.get("type").and_then(|v| v.as_str()) == Some("order")
+            {
+                if let Some(p) = map.get("p") {
+                    fees.push(p.to_string());
+                }
+            }
             if let Some(grouping) = map.get("grouping") {
                 if let Some(p) = grouping.get("p") {
                     fees.push(p.to_string());
@@ -73,13 +80,21 @@ fn matches_text_filters(text: &str, contains: &[String]) -> bool {
 
 #[derive(Parser)]
 #[command(name = "priority-order-example")]
-#[command(about = "Watch testnet priority MEMPOOL_TXS from a QuickNode Hyperliquid gRPC endpoint")]
+#[command(
+    about = "Watch pre-consensus Hyperliquid priority-fee mempool events from a QuickNode gRPC endpoint"
+)]
 struct Args {
     #[arg(long, default_value_t = 0)]
     start_block: u64,
 
     #[arg(long)]
     contains: Vec<String>,
+
+    #[arg(long)]
+    include_confirmed: bool,
+
+    #[arg(long)]
+    raw_mempool: bool,
 
     #[arg(long)]
     all_mempool: bool,
@@ -96,7 +111,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     if grpc_endpoint() == DEFAULT_GRPC_ENDPOINT {
-        eprintln!("Set GRPC_ENDPOINT to your QuickNode Hyperliquid testnet gRPC endpoint");
+        eprintln!(
+            "Set GRPC_ENDPOINT to your QuickNode Hyperliquid mainnet or testnet gRPC endpoint"
+        );
         std::process::exit(2);
     }
     if auth_token() == DEFAULT_AUTH_TOKEN {
@@ -108,13 +125,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = StreamingClient::new(channel);
     let (tx, rx) = mpsc::channel(32);
     let stream = ReceiverStream::new(rx);
+    let raw_mempool = args.raw_mempool || args.all_mempool;
+    let stream_type = if raw_mempool {
+        StreamType::MempoolTxs
+    } else {
+        StreamType::OrderPriority
+    };
+    let mut filters = std::collections::HashMap::new();
+    if !raw_mempool && !args.include_confirmed {
+        filters.insert(
+            "source".to_string(),
+            FilterValues {
+                values: vec!["mempool_txs".to_string()],
+            },
+        );
+    }
 
     tx.send(SubscribeRequest {
         request: Some(hyperliquid::subscribe_request::Request::Subscribe(
             StreamSubscribe {
-                stream_type: StreamType::MempoolTxs as i32,
+                stream_type: stream_type as i32,
                 start_block: args.start_block,
-                filters: std::collections::HashMap::new(),
+                filters,
                 filter_name: String::new(),
             },
         )),
@@ -141,10 +173,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .metadata_mut()
         .insert("x-token", auth_token().parse::<MetadataValue<_>>()?);
 
-    println!("Watching testnet MEMPOOL_TXS");
+    if raw_mempool {
+        println!("Watching raw MEMPOOL_TXS");
+    } else if args.include_confirmed {
+        println!("Watching ORDER_PRIORITY events from mempool_txs and replica_cmds");
+    } else {
+        println!("Watching pre-consensus ORDER_PRIORITY mempool events");
+    }
     println!("Endpoint: {}", grpc_endpoint());
-    if !args.all_mempool {
-        println!("Filter: priority grouping only");
+    if !raw_mempool && !args.include_confirmed {
+        println!("Server filter: source=mempool_txs (not finalized)");
+    } else if raw_mempool && !args.all_mempool {
+        println!("Local filter: priority grouping only");
     }
     if !args.contains.is_empty() {
         println!("Text filters: {:?}", args.contains);
@@ -168,14 +208,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let parsed = serde_json::from_str::<serde_json::Value>(&text).ok();
         let fees = parsed.as_ref().map(priority_fees).unwrap_or_default();
-        if !args.all_mempool && fees.is_empty() {
+        if raw_mempool && !args.all_mempool && fees.is_empty() {
             continue;
         }
 
         printed += 1;
-        println!("\nBlock {} | Timestamp {}", data.block_number, data.timestamp);
+        println!(
+            "\nBlock {} | Timestamp {}",
+            data.block_number, data.timestamp
+        );
         if !fees.is_empty() {
-            println!("Priority fee grouping p: {}", fees.join(", "));
+            println!("Priority p: {}", fees.join(", "));
         }
         if args.compact {
             println!("{}", text.chars().take(1000).collect::<String>());
