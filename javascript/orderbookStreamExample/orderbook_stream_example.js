@@ -7,6 +7,7 @@ const path = require('path');
 // Testnet: your-endpoint.hype-testnet.quiknode.pro:10000
 const GRPC_ENDPOINT = process.env.GRPC_ENDPOINT || 'your-endpoint.hype-mainnet.quiknode.pro:10000';
 const AUTH_TOKEN = process.env.AUTH_TOKEN || process.env.QN_AUTH_TOKEN || 'your-quicknode-token';
+const GRPC_PLAINTEXT = process.env.GRPC_PLAINTEXT === '1';
 const PROTO_PATH = path.join(__dirname, '..', '..', 'proto', 'orderbook.proto');
 
 const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
@@ -21,7 +22,7 @@ const proto = grpc.loadPackageDefinition(packageDefinition).hyperliquid;
 function createClient() {
   return new proto.OrderBookStreaming(
     GRPC_ENDPOINT,
-    grpc.credentials.createSsl(),
+    GRPC_PLAINTEXT ? grpc.credentials.createInsecure() : grpc.credentials.createSsl(),
     { 'grpc.max_receive_message_length': 100 * 1024 * 1024 }
   );
 }

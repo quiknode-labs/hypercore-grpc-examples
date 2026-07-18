@@ -92,6 +92,38 @@ Priority examples are available in:
 - `golang/priorityOrderExample/`
 - `rust/src/priorityOrderExample/`
 
+## Raw Mempool Coin Filtering
+
+`MEMPOOL_TXS` supports the virtual server-side fields `coin` and `coins`. Raw
+mempool payloads contain numeric asset IDs, so the server resolves current coin
+names dynamically and matches the transaction when any order-touching action
+uses a requested asset. The response remains the original raw JSON tuple or
+object; it is not replaced by a normalized event.
+
+The dedicated examples default to `coin=BTC` and independently verify asset ID
+`0` in each returned raw transaction:
+
+```bash
+export GRPC_ENDPOINT="your-endpoint.hype-mainnet.quiknode.pro:10000"
+export AUTH_TOKEN="YOUR_QUICKNODE_TOKEN"
+
+# JavaScript
+node javascript/mempoolFilterExample/mempool_filter_example.js --max-messages=5
+
+# Python
+python3 python/mempoolFilterExample/mempool_filter_example.py --max-messages 5
+
+# Go
+(cd golang && go run ./mempoolFilterExample -max-messages 5)
+
+# Rust
+(cd rust && cargo run --bin mempool_filter_example -- --max-messages 5)
+```
+
+The filter spans `order`, `cancel`, `cancelByCloid`, `batchModify`, `modify`,
+`twapOrder`, and `twapCancel`. See [Mempool Filtering](docs/mempool-filtering.md)
+for semantics, non-matching controls, raw output, and unit-test commands.
+
 ## Filtering
 
 Each language includes a dedicated `filter_example` file demonstrating server-side filtering.

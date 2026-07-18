@@ -27,20 +27,42 @@ function parseArgs() {
   };
 
   const contains = [];
+  const serverFilters = {};
   args.forEach((arg, i) => {
     if (arg === '--contains' && args[i + 1]) contains.push(args[i + 1]);
     if (arg.startsWith('--contains=')) contains.push(arg.split('=').slice(1).join('='));
+    if (arg === '--filter' && args[i + 1]) addServerFilter(serverFilters, args[i + 1]);
+    if (arg.startsWith('--filter=')) addServerFilter(serverFilters, arg.split('=').slice(1).join('='));
   });
 
   return {
     startBlock: parseInt(get('start-block') || '0', 10),
     contains,
+    serverFilters,
     includeConfirmed: args.includes('--include-confirmed'),
     rawMempool: args.includes('--raw-mempool'),
     allMempool: args.includes('--all-mempool'),
     compact: args.includes('--compact'),
     maxMessages: get('max-messages') ? parseInt(get('max-messages'), 10) : null
   };
+}
+
+function addServerFilter(filters, expression) {
+  const index = expression.indexOf('=');
+  if (index <= 0 || index === expression.length - 1) {
+    throw new Error(`Invalid --filter ${expression}; expected field=value1,value2`);
+  }
+
+  const field = expression.slice(0, index).trim();
+  const values = expression
+    .slice(index + 1)
+    .split(',')
+    .map(value => value.trim())
+    .filter(Boolean);
+  if (!field || values.length === 0) {
+    throw new Error(`Invalid --filter ${expression}; expected field=value1,value2`);
+  }
+  filters[field] = { values };
 }
 
 async function decompress(data) {
@@ -123,6 +145,9 @@ function main() {
   } else if (rawMempool && !args.allMempool) {
     console.log('Local filter: priority grouping only');
   }
+  if (Object.keys(args.serverFilters).length) {
+    console.log(`Server filters: ${JSON.stringify(args.serverFilters)}`);
+  }
   if (args.contains.length) console.log(`Text filters: ${JSON.stringify(args.contains)}`);
 
   const client = createClient();
@@ -132,14 +157,15 @@ function main() {
   let printed = 0;
   let stopping = false;
   let processing = Promise.resolve();
+  const filters = !rawMempool && !args.includeConfirmed
+    ? { source: { values: ['mempool_txs'] }, ...args.serverFilters }
+    : args.serverFilters;
 
   call.write({
     subscribe: {
       stream_type: rawMempool ? 'MEMPOOL_TXS' : 'ORDER_PRIORITY',
       start_block: args.startBlock,
-      filters: !rawMempool && !args.includeConfirmed
-        ? { source: { values: ['mempool_txs'] } }
-        : {}
+      filters
     }
   });
 
