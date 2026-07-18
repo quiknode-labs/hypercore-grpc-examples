@@ -43,8 +43,8 @@ node orderbook_stream_example.js --mode=l4 --coin=BTC
 npm run l4
 ```
 
-Version `1.0.70` preserves ALO priority-fee queue ordering without changing the
-public response shape. The stream can send a full snapshot again after normal
+The L4 stream preserves ALO priority-fee queue ordering without changing the
+public response shape. It can send a full snapshot again after normal
 diffs. The example labels it `reset=replacement`; discard the entire local L4
 book and rebuild `bids` and `asks` in the emitted order.
 

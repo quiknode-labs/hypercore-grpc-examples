@@ -62,7 +62,8 @@ function addServerFilter(filters, expression) {
   if (!field || values.length === 0) {
     throw new Error(`Invalid --filter ${expression}; expected field=value1,value2`);
   }
-  filters[field] = { values };
+  const existing = filters[field]?.values || [];
+  filters[field] = { values: [...new Set([...existing, ...values])] };
 }
 
 async function decompress(data) {
@@ -231,4 +232,8 @@ function main() {
   });
 }
 
-main();
+if (require.main === module) {
+  main();
+}
+
+module.exports = { addServerFilter };

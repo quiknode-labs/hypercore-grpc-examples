@@ -110,8 +110,8 @@ For `StreamTpslUpdates`, `--all` means all perp coins.
 
 ## L4 ALO Queue Priority
 
-Version `1.0.70` accounts for Hyperliquid's ALO priority-fee queue insertions
-without changing the public gRPC or JSON schemas. The upstream `insertBefore`
+The L4 streams account for Hyperliquid's ALO priority-fee queue insertions
+without changing the public gRPC or JSON schemas. Hyperliquid's `insertBefore`
 metadata is used to construct the canonical queue but is not added to customer
 diff payloads.
 
@@ -134,8 +134,8 @@ queue order.
 This is not a breaking response change: no protobuf field was added or removed,
 and raw diff JSON retains its existing shape. For live book maintenance, the
 replacement snapshot contains the complete canonical state at its height. It
-replaces the priority-insertion diff rather than exposing that internal
-mutation as a new public event shape.
+replaces the priority-insertion diff rather than introducing a new public event
+shape.
 
 Replacement snapshots contain the full L4 depth and can be much larger than an
 incremental update, especially for BTC. Clients should allow at least 100 MB

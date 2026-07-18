@@ -195,6 +195,7 @@ async function main() {
   const expectedAssets = new Set(expectedAssetIds);
   let received = 0;
   let finished = false;
+  let processing = Promise.resolve();
   let pingTimer;
   let timeoutTimer;
 
@@ -235,8 +236,11 @@ async function main() {
 
   call.on('data', response => {
     if (finished || !response.data) return;
-    void (async () => {
-      const text = await decompress(response.data.data);
+    const payload = response.data.data;
+    processing = processing.then(async () => {
+      if (finished) return;
+      const text = await decompress(payload);
+      if (finished) return;
       const value = JSON.parse(text);
       const observed = orderTouchingAssetIds(value);
       const touchingActions = orderTouchingActions(value);
@@ -288,7 +292,7 @@ async function main() {
       if (received >= maxMessages) {
         finish(0, `PASS: received ${received} server-filtered mempool message(s)`);
       }
-    })().catch(error => finish(1, `FAILED: ${error.message}`));
+    }).catch(error => finish(1, `FAILED: ${error.message}`));
   });
 
   call.on('error', error => {

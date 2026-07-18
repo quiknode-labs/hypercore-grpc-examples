@@ -11,6 +11,8 @@ Required environment:
     export AUTH_TOKEN="YOUR_QUICKNODE_TOKEN"
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import os
@@ -24,9 +26,8 @@ try:
     import orderbook_pb2 as pb
     import orderbook_pb2_grpc as pb_grpc
 except ImportError:
-    print("Error: Proto files not generated. Run:")
-    print("  python -m grpc_tools.protoc -I../../proto --python_out=. --grpc_python_out=. ../../proto/orderbook.proto")
-    sys.exit(1)
+    pb = None
+    pb_grpc = None
 
 GRPC_ENDPOINT = os.environ.get("GRPC_ENDPOINT", "your-endpoint.hype-mainnet.quiknode.pro:10000")
 AUTH_TOKEN = os.environ.get("AUTH_TOKEN") or os.environ.get("QN_AUTH_TOKEN") or "your-quicknode-token"
@@ -276,6 +277,11 @@ def coin_display(args) -> tuple[str, str]:
 
 
 def main():
+    if pb is None or pb_grpc is None:
+        print("Error: Proto files not generated. Run:")
+        print("  python -m grpc_tools.protoc -I../../proto --python_out=. --grpc_python_out=. ../../proto/orderbook.proto")
+        sys.exit(1)
+
     args = parse_args()
 
     print("Hyperliquid Orderbook Stream Example")
