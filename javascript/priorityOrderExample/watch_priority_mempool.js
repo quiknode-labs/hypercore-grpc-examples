@@ -66,6 +66,30 @@ function addServerFilter(filters, expression) {
   filters[field] = { values: [...new Set([...existing, ...values])] };
 }
 
+function subscriptionFilters(args) {
+  const rawMempool = args.rawMempool || args.allMempool;
+  const filters = Object.fromEntries(
+    Object.entries(args.serverFilters).map(([field, filter]) => [
+      field,
+      { values: [...filter.values] }
+    ])
+  );
+
+  if (!rawMempool && !args.includeConfirmed) {
+    const requestedSources = filters.source?.values || [];
+    const incompatibleSources = requestedSources.filter(source => source !== 'mempool_txs');
+    if (incompatibleSources.length > 0) {
+      throw new Error(
+        'Default ORDER_PRIORITY mode only supports source=mempool_txs; ' +
+        'use --include-confirmed before selecting another source'
+      );
+    }
+    filters.source = { values: ['mempool_txs'] };
+  }
+
+  return filters;
+}
+
 async function decompress(data) {
   if (typeof data === 'string') {
     if (
@@ -123,6 +147,13 @@ function createClient() {
 function main() {
   const args = parseArgs();
   const rawMempool = args.rawMempool || args.allMempool;
+  let filters;
+  try {
+    filters = subscriptionFilters(args);
+  } catch (err) {
+    console.error(`Invalid server filters: ${err.message}`);
+    process.exit(2);
+  }
 
   if (GRPC_ENDPOINT === DEFAULT_GRPC_ENDPOINT) {
     console.error('Set GRPC_ENDPOINT to your QuickNode Hyperliquid mainnet or testnet gRPC endpoint.');
@@ -158,9 +189,6 @@ function main() {
   let printed = 0;
   let stopping = false;
   let processing = Promise.resolve();
-  const filters = !rawMempool && !args.includeConfirmed
-    ? { source: { values: ['mempool_txs'] }, ...args.serverFilters }
-    : args.serverFilters;
 
   call.write({
     subscribe: {
@@ -171,7 +199,9 @@ function main() {
   });
 
   const ping = setInterval(() => {
-    call.write({ ping: { timestamp: Date.now() } });
+    const timestamp = Date.now();
+    console.log(`PING timestamp=${timestamp}`);
+    call.write({ ping: { timestamp } });
   }, 30000);
 
   async function handleData(response) {
@@ -214,6 +244,10 @@ function main() {
   }
 
   call.on('data', (response) => {
+    if (response.pong) {
+      console.log(`PONG timestamp=${response.pong.timestamp}`);
+      return;
+    }
     processing = processing
       .then(() => handleData(response))
       .catch((err) => {
@@ -236,4 +270,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { addServerFilter };
+module.exports = { addServerFilter, subscriptionFilters };

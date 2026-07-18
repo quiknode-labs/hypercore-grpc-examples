@@ -9,6 +9,7 @@ action, while returning the original raw tuple/object unchanged.
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import os
 from pathlib import Path
@@ -29,6 +30,7 @@ ORDER_TOUCHING_TYPES = {
     "twapCancel",
 }
 HEARTBEAT_SECONDS = 30
+GENERATED_PROTO_DIR = Path(__file__).resolve().parents[1]
 
 
 def signed_actions(value: Any) -> list[dict[str, Any]]:
@@ -118,10 +120,19 @@ def decode_data(data: Any) -> str:
 
 
 def protobuf_modules():
-    generated = Path(__file__).resolve().parents[1] / "grpcRawDataExample"
-    sys.path.insert(0, str(generated))
-    import hyperliquid_pb2 as pb
-    import hyperliquid_pb2_grpc as pb_grpc
+    generated = str(GENERATED_PROTO_DIR)
+    sys.path[:] = [entry for entry in sys.path if entry != generated]
+    sys.path.insert(0, generated)
+
+    try:
+        pb = importlib.import_module("hyperliquid_pb2")
+        pb_grpc = importlib.import_module("hyperliquid_pb2_grpc")
+    except ModuleNotFoundError as error:
+        if error.name in {"hyperliquid_pb2", "hyperliquid_pb2_grpc"}:
+            raise RuntimeError(
+                "Python protobuf files are missing; run `cd python && ./generate_proto.sh`"
+            ) from error
+        raise
 
     return pb, pb_grpc
 

@@ -9,6 +9,8 @@ const GRPC_ENDPOINT = process.env.GRPC_ENDPOINT || 'your-endpoint.hype-mainnet.q
 const AUTH_TOKEN = process.env.AUTH_TOKEN || process.env.QN_AUTH_TOKEN || 'your-quicknode-token';
 const GRPC_PLAINTEXT = process.env.GRPC_PLAINTEXT === '1';
 const PROTO_PATH = path.join(__dirname, '..', '..', 'proto', 'orderbook.proto');
+const MAX_RECEIVE_BYTES = 100 * 1024 * 1024;
+const L4_FLOW_CONTROL_BYTES = 32 * 1024 * 1024;
 
 const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   keepCase: true,
@@ -19,11 +21,22 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 });
 const proto = grpc.loadPackageDefinition(packageDefinition).hyperliquid;
 
+function channelOptions() {
+  return {
+    'grpc.max_receive_message_length': MAX_RECEIVE_BYTES,
+    // BTC L4 snapshots contain tens of thousands of orders. A larger HTTP/2
+    // receive window prevents the server from timing out while Node decodes them.
+    'grpc-node.flow_control_window': L4_FLOW_CONTROL_BYTES,
+    'grpc.keepalive_time_ms': 30000,
+    'grpc.keepalive_timeout_ms': 10000
+  };
+}
+
 function createClient() {
   return new proto.OrderBookStreaming(
     GRPC_ENDPOINT,
     GRPC_PLAINTEXT ? grpc.credentials.createInsecure() : grpc.credentials.createSsl(),
-    { 'grpc.max_receive_message_length': 100 * 1024 * 1024 }
+    channelOptions()
   );
 }
 
@@ -296,4 +309,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { l4SnapshotResetKind };
+module.exports = { channelOptions, l4SnapshotResetKind };

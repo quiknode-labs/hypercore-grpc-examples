@@ -1,7 +1,9 @@
 import copy
 import importlib.util
 from pathlib import Path
+import sys
 import unittest
+from unittest import mock
 
 import zstandard
 
@@ -31,6 +33,37 @@ def fixture(object_root=False):
 
 
 class MempoolFilterExtractionTests(unittest.TestCase):
+    def test_proto_import_uses_documented_python_output_directory(self):
+        original_path = sys.path.copy()
+        imported = []
+
+        def import_module(name):
+            imported.append((name, sys.path[0]))
+            return mock.sentinel.module
+
+        try:
+            with mock.patch.object(MODULE.importlib, "import_module", side_effect=import_module):
+                pb, pb_grpc = MODULE.protobuf_modules()
+        finally:
+            sys.path[:] = original_path
+
+        expected = str(MODULE_PATH.parents[1])
+        self.assertEqual(
+            imported,
+            [
+                ("hyperliquid_pb2", expected),
+                ("hyperliquid_pb2_grpc", expected),
+            ],
+        )
+        self.assertIs(pb, mock.sentinel.module)
+        self.assertIs(pb_grpc, mock.sentinel.module)
+
+    def test_missing_proto_error_names_documented_generation_command(self):
+        missing = ModuleNotFoundError(name="hyperliquid_pb2")
+        with mock.patch.object(MODULE.importlib, "import_module", side_effect=missing):
+            with self.assertRaisesRegex(RuntimeError, r"cd python && ./generate_proto\.sh"):
+                MODULE.protobuf_modules()
+
     def test_builds_application_ping_request(self):
         class FakePing:
             def __init__(self, timestamp):
