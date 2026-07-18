@@ -1,0 +1,114 @@
+import copy
+import importlib.util
+from pathlib import Path
+import sys
+import unittest
+from unittest import mock
+
+import zstandard
+
+
+MODULE_PATH = Path(__file__).with_name("mempool_filter_example.py")
+SPEC = importlib.util.spec_from_file_location("mempool_filter_example", MODULE_PATH)
+MODULE = importlib.util.module_from_spec(SPEC)
+assert SPEC.loader is not None
+SPEC.loader.exec_module(MODULE)
+
+
+def fixture(object_root=False):
+    tx = {
+        "tx_hash": "0xraw",
+        "signed_actions": [
+            {"action": {"type": "order", "orders": [{"a": 0}]}},
+            {"action": {"type": "cancel", "cancels": [{"a": "5"}]}},
+            {"action": {"type": "cancelByCloid", "cancels": [{"asset": 0}]}},
+            {"action": {"type": "batchModify", "modifies": [{"order": {"a": "0"}}]}},
+            {"action": {"type": "modify", "order": {"asset": 0}}},
+            {"action": {"type": "twapOrder", "twap": {"a": 0}}},
+            {"action": {"type": "twapCancel", "asset": 0}},
+            {"action": {"type": "noop"}},
+        ],
+    }
+    return tx if object_root else ["2026-07-17T00:00:00Z", tx]
+
+
+class MempoolFilterExtractionTests(unittest.TestCase):
+    def test_proto_import_uses_documented_python_output_directory(self):
+        original_path = sys.path.copy()
+        imported = []
+
+        def import_module(name):
+            imported.append((name, sys.path[0]))
+            return mock.sentinel.module
+
+        try:
+            with mock.patch.object(MODULE.importlib, "import_module", side_effect=import_module):
+                pb, pb_grpc = MODULE.protobuf_modules()
+        finally:
+            sys.path[:] = original_path
+
+        expected = str(MODULE_PATH.parents[1])
+        self.assertEqual(
+            imported,
+            [
+                ("hyperliquid_pb2", expected),
+                ("hyperliquid_pb2_grpc", expected),
+            ],
+        )
+        self.assertIs(pb, mock.sentinel.module)
+        self.assertIs(pb_grpc, mock.sentinel.module)
+
+    def test_missing_proto_error_names_documented_generation_command(self):
+        missing = ModuleNotFoundError(name="hyperliquid_pb2")
+        with mock.patch.object(MODULE.importlib, "import_module", side_effect=missing):
+            with self.assertRaisesRegex(RuntimeError, r"cd python && ./generate_proto\.sh"):
+                MODULE.protobuf_modules()
+
+    def test_builds_application_ping_request(self):
+        class FakePing:
+            def __init__(self, timestamp):
+                self.timestamp = timestamp
+
+        class FakeSubscribeRequest:
+            def __init__(self, ping):
+                self.ping = ping
+
+        class FakePb:
+            Ping = FakePing
+            SubscribeRequest = FakeSubscribeRequest
+
+        request = MODULE.ping_request(FakePb, 123456789)
+        self.assertEqual(request.ping.timestamp, 123456789)
+
+    def test_zstd_payload_encoded_as_protobuf_string(self):
+        text = '["2026-07-17T00:00:00Z",{"signed_actions":[]}]'
+        compressed = zstandard.ZstdCompressor().compress(text.encode())
+        protobuf_string = compressed.decode("latin-1")
+
+        self.assertEqual(MODULE.decode_data(protobuf_string), text)
+        self.assertEqual(MODULE.decode_data(text), text)
+
+    def test_all_order_touching_actions_and_raw_tuple_preserved(self):
+        raw = fixture()
+        before = copy.deepcopy(raw)
+        actions = MODULE.order_touching_actions(raw)
+        self.assertEqual(
+            [action["type"] for action in actions],
+            ["order", "cancel", "cancelByCloid", "batchModify", "modify", "twapOrder", "twapCancel"],
+        )
+        self.assertEqual(set(MODULE.order_touching_asset_ids(raw)), {"0", "5"})
+        self.assertEqual(raw, before)
+
+    def test_object_root_supported(self):
+        self.assertIn("0", MODULE.order_touching_asset_ids(fixture(object_root=True)))
+
+    def test_non_order_and_invalid_assets_ignored(self):
+        raw = {"signed_actions": [
+            {"action": {"type": "order", "orders": [{"a": -1}, {"a": "BTC"}]}},
+            {"action": {"type": "noop", "a": 0}},
+        ]}
+        self.assertEqual(MODULE.order_touching_actions(raw), [])
+
+
+if __name__ == "__main__":
+    unittest.main()

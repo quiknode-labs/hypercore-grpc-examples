@@ -27,20 +27,67 @@ function parseArgs() {
   };
 
   const contains = [];
+  const serverFilters = {};
   args.forEach((arg, i) => {
     if (arg === '--contains' && args[i + 1]) contains.push(args[i + 1]);
     if (arg.startsWith('--contains=')) contains.push(arg.split('=').slice(1).join('='));
+    if (arg === '--filter' && args[i + 1]) addServerFilter(serverFilters, args[i + 1]);
+    if (arg.startsWith('--filter=')) addServerFilter(serverFilters, arg.split('=').slice(1).join('='));
   });
 
   return {
     startBlock: parseInt(get('start-block') || '0', 10),
     contains,
+    serverFilters,
     includeConfirmed: args.includes('--include-confirmed'),
     rawMempool: args.includes('--raw-mempool'),
     allMempool: args.includes('--all-mempool'),
     compact: args.includes('--compact'),
     maxMessages: get('max-messages') ? parseInt(get('max-messages'), 10) : null
   };
+}
+
+function addServerFilter(filters, expression) {
+  const index = expression.indexOf('=');
+  if (index <= 0 || index === expression.length - 1) {
+    throw new Error(`Invalid --filter ${expression}; expected field=value1,value2`);
+  }
+
+  const field = expression.slice(0, index).trim();
+  const values = expression
+    .slice(index + 1)
+    .split(',')
+    .map(value => value.trim())
+    .filter(Boolean);
+  if (!field || values.length === 0) {
+    throw new Error(`Invalid --filter ${expression}; expected field=value1,value2`);
+  }
+  const existing = filters[field]?.values || [];
+  filters[field] = { values: [...new Set([...existing, ...values])] };
+}
+
+function subscriptionFilters(args) {
+  const rawMempool = args.rawMempool || args.allMempool;
+  const filters = Object.fromEntries(
+    Object.entries(args.serverFilters).map(([field, filter]) => [
+      field,
+      { values: [...filter.values] }
+    ])
+  );
+
+  if (!rawMempool && !args.includeConfirmed) {
+    const requestedSources = filters.source?.values || [];
+    const incompatibleSources = requestedSources.filter(source => source !== 'mempool_txs');
+    if (incompatibleSources.length > 0) {
+      throw new Error(
+        'Default ORDER_PRIORITY mode only supports source=mempool_txs; ' +
+        'use --include-confirmed before selecting another source'
+      );
+    }
+    filters.source = { values: ['mempool_txs'] };
+  }
+
+  return filters;
 }
 
 async function decompress(data) {
@@ -100,6 +147,13 @@ function createClient() {
 function main() {
   const args = parseArgs();
   const rawMempool = args.rawMempool || args.allMempool;
+  let filters;
+  try {
+    filters = subscriptionFilters(args);
+  } catch (err) {
+    console.error(`Invalid server filters: ${err.message}`);
+    process.exit(2);
+  }
 
   if (GRPC_ENDPOINT === DEFAULT_GRPC_ENDPOINT) {
     console.error('Set GRPC_ENDPOINT to your QuickNode Hyperliquid mainnet or testnet gRPC endpoint.');
@@ -123,6 +177,9 @@ function main() {
   } else if (rawMempool && !args.allMempool) {
     console.log('Local filter: priority grouping only');
   }
+  if (Object.keys(args.serverFilters).length) {
+    console.log(`Server filters: ${JSON.stringify(args.serverFilters)}`);
+  }
   if (args.contains.length) console.log(`Text filters: ${JSON.stringify(args.contains)}`);
 
   const client = createClient();
@@ -137,14 +194,14 @@ function main() {
     subscribe: {
       stream_type: rawMempool ? 'MEMPOOL_TXS' : 'ORDER_PRIORITY',
       start_block: args.startBlock,
-      filters: !rawMempool && !args.includeConfirmed
-        ? { source: { values: ['mempool_txs'] } }
-        : {}
+      filters
     }
   });
 
   const ping = setInterval(() => {
-    call.write({ ping: { timestamp: Date.now() } });
+    const timestamp = Date.now();
+    console.log(`PING timestamp=${timestamp}`);
+    call.write({ ping: { timestamp } });
   }, 30000);
 
   async function handleData(response) {
@@ -187,6 +244,10 @@ function main() {
   }
 
   call.on('data', (response) => {
+    if (response.pong) {
+      console.log(`PONG timestamp=${response.pong.timestamp}`);
+      return;
+    }
     processing = processing
       .then(() => handleData(response))
       .catch((err) => {
@@ -205,4 +266,8 @@ function main() {
   });
 }
 
-main();
+if (require.main === module) {
+  main();
+}
+
+module.exports = { addServerFilter, subscriptionFilters };

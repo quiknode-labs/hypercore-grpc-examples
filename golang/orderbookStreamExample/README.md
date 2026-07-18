@@ -35,6 +35,12 @@ go run orderbookStreamExample/orderbook_stream_example.go -mode=l2 -coin=BTC -ma
 go run orderbookStreamExample/orderbook_stream_example.go -mode=l4 -coin=BTC -max-messages=5
 ```
 
+The L4 stream preserves ALO priority-fee queue ordering without changing the
+public response shape. It can send a full snapshot again after normal
+diffs. The example labels it an `initial reset` or `replacement reset`; discard
+the entire local L4 book on every snapshot and rebuild bids and asks in the
+emitted order.
+
 ## Multi-Coin Streams
 
 ```bash
@@ -60,4 +66,6 @@ go run orderbookStreamExample/orderbook_stream_example.go -mode=bbo -all -max-me
 - `StreamL2Book` and `StreamL2BookDiff` share the same `n_levels`, `n_sig_figs`, and `mantissa` behavior.
 - In `StreamL2BookDiff`, `sz: "0"` and `n: 0` means remove that price level.
 - In `StreamL4BookUpdates` and `StreamTpslUpdates`, `DATA_LOSS` means reconnect and rebuild from the next `snapshot=true` message.
+- On `StreamL4Book`, treat every snapshot as authoritative and replace the entire local book.
+- On `StreamL4BookUpdates`, clear local order state whenever `snapshot=true` before applying the update.
 - Position TP/SL rows can have `sz: "0.0"` because that is what the node emits.

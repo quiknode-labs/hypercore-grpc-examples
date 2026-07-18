@@ -16,6 +16,9 @@ Main streaming service for blockchain data:
 #### MEMPOOL_TXS
 - Available on mainnet and testnet
 - Emits raw pre-consensus mempool transactions
+- Supports virtual `coin` and `coins` filters. The server dynamically resolves
+  coin names to numeric assets across all order-touching actions and returns the
+  original raw transaction unchanged.
 - See the `priorityOrderExample` directories for runnable priority transaction watchers in JavaScript, Python, Go, and Rust
 
 #### ORDER_PRIORITY

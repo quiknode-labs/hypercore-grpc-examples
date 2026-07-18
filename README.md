@@ -54,6 +54,13 @@ The `hyperliquid.OrderBookStreaming` service exposes full-book streams plus lowe
 | `StreamL4BookUpdates` | New typed L4 order-level changes |
 | `StreamTpslUpdates` | New typed TP/SL trigger-order lifecycle changes |
 
+L4 streams keep books correctly ordered when ALO priority fees change queue
+placement. The public response schema is unchanged: `StreamL4Book` emits
+an authoritative replacement snapshot, and `StreamL4BookUpdates` emits an
+update with `snapshot=true`. Clients must clear and rebuild local state whenever
+either stream sends a snapshot, not only on initial subscription. See
+[L4 ALO Queue Priority](docs/orderbook-streaming.md#l4-alo-queue-priority).
+
 Run BBO with your hosted QuickNode endpoint:
 
 ```bash
@@ -91,6 +98,39 @@ Priority examples are available in:
 - `python/priorityOrderExample/`
 - `golang/priorityOrderExample/`
 - `rust/src/priorityOrderExample/`
+
+## Raw Mempool Coin Filtering
+
+`MEMPOOL_TXS` supports the virtual server-side fields `coin` and `coins`. Raw
+mempool payloads contain numeric asset IDs, so the server resolves current coin
+names dynamically and matches the transaction when any order-touching action
+uses a requested asset. The response remains the original raw JSON tuple or
+object; it is not replaced by a normalized event.
+
+The dedicated examples default to `coin=BTC` and independently verify asset ID
+`0` in each returned raw transaction:
+
+```bash
+export GRPC_ENDPOINT="your-endpoint.hype-mainnet.quiknode.pro:10000"
+export AUTH_TOKEN="YOUR_QUICKNODE_TOKEN"
+
+# JavaScript
+node javascript/mempoolFilterExample/mempool_filter_example.js --max-messages=5
+
+# Python
+python3 python/mempoolFilterExample/mempool_filter_example.py --max-messages 5
+
+# Go
+(cd golang && go run ./mempoolFilterExample -max-messages 5)
+
+# Rust
+(cd rust && cargo run --bin mempool_filter_example -- --max-messages 5)
+```
+
+The filter spans `order`, `cancel`, `cancelByCloid`, `batchModify`, `modify`,
+`twapOrder`, and `twapCancel`. See [Mempool Filtering](docs/mempool-filtering.md)
+for semantics, visible 30-second Ping/Pong heartbeats, non-matching controls,
+raw output, and unit-test commands.
 
 ## Filtering
 

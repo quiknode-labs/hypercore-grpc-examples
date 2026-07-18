@@ -158,10 +158,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
         loop {
             interval.tick().await;
+            let timestamp = chrono::Utc::now().timestamp_millis();
+            println!("PING timestamp={timestamp}");
             let _ = tx_ping
                 .send(SubscribeRequest {
                     request: Some(hyperliquid::subscribe_request::Request::Ping(Ping {
-                        timestamp: chrono::Utc::now().timestamp_millis(),
+                        timestamp,
                     })),
                 })
                 .await;
@@ -197,8 +199,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let Some(update) = response.update else {
             continue;
         };
-        let hyperliquid::subscribe_update::Update::Data(data) = update else {
-            continue;
+        let data = match update {
+            hyperliquid::subscribe_update::Update::Data(data) => data,
+            hyperliquid::subscribe_update::Update::Pong(pong) => {
+                println!("PONG timestamp={}", pong.timestamp);
+                continue;
+            }
         };
 
         let text = decompress(data.data.as_bytes())?;

@@ -89,7 +89,9 @@ def request_generator(start_block: int, raw_mempool: bool, include_confirmed: bo
 
     while True:
         time.sleep(30)
-        yield pb.SubscribeRequest(ping=pb.Ping(timestamp=int(time.time() * 1000)))
+        timestamp = int(time.time() * 1000)
+        print(f"PING timestamp={timestamp}")
+        yield pb.SubscribeRequest(ping=pb.Ping(timestamp=timestamp))
 
 
 def text_matches_filters(text: str, needles: list[str]) -> bool:
@@ -175,6 +177,7 @@ def main() -> int:
     try:
         for response in stub.StreamData(request_generator(args.start_block, raw_mempool, args.include_confirmed), metadata=metadata):
             if response.HasField("pong"):
+                print(f"PONG timestamp={response.pong.timestamp}")
                 continue
             if not response.HasField("data"):
                 continue

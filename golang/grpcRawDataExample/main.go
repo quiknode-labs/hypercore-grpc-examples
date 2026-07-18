@@ -63,7 +63,7 @@ func createConnection() (*grpc.ClientConn, error) {
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(creds),
 		grpc.WithDefaultCallOptions(
-			grpc.MaxCallRecvMsgSize(100*1024*1024),
+			grpc.MaxCallRecvMsgSize(100 * 1024 * 1024),
 		),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
 			Time:                30 * time.Second,
@@ -147,7 +147,7 @@ func streamData(ctx context.Context, streamType string, filters map[string][]str
 
 		switch u := resp.Update.(type) {
 		case *pb.SubscribeUpdate_Data:
-			decompressed, err := decompress(u.Data.Data)
+			decompressed, err := decompress([]byte(u.Data.Data))
 			if err != nil {
 				log.Printf("Decompress error: %v", err)
 				continue

@@ -193,9 +193,11 @@ func main() {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				timestamp := time.Now().UnixMilli()
+				fmt.Printf("PING timestamp=%d\n", timestamp)
 				_ = stream.Send(&pb.SubscribeRequest{
 					Request: &pb.SubscribeRequest_Ping{
-						Ping: &pb.Ping{Timestamp: time.Now().UnixMilli()},
+						Ping: &pb.Ping{Timestamp: timestamp},
 					},
 				})
 			}
@@ -227,6 +229,10 @@ func main() {
 		}
 		if err != nil {
 			log.Fatalf("receive error: %v", err)
+		}
+		if pong := resp.GetPong(); pong != nil {
+			fmt.Printf("PONG timestamp=%d\n", pong.Timestamp)
+			continue
 		}
 
 		dataUpdate, ok := resp.Update.(*pb.SubscribeUpdate_Data)

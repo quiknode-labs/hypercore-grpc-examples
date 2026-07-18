@@ -11,6 +11,8 @@ Required environment:
     export AUTH_TOKEN="YOUR_QUICKNODE_TOKEN"
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import os
@@ -24,9 +26,8 @@ try:
     import orderbook_pb2 as pb
     import orderbook_pb2_grpc as pb_grpc
 except ImportError:
-    print("Error: Proto files not generated. Run:")
-    print("  python -m grpc_tools.protoc -I../../proto --python_out=. --grpc_python_out=. ../../proto/orderbook.proto")
-    sys.exit(1)
+    pb = None
+    pb_grpc = None
 
 GRPC_ENDPOINT = os.environ.get("GRPC_ENDPOINT", "your-endpoint.hype-mainnet.quiknode.pro:10000")
 AUTH_TOKEN = os.environ.get("AUTH_TOKEN") or os.environ.get("QN_AUTH_TOKEN") or "your-quicknode-token"
@@ -60,6 +61,12 @@ def enum_name(enum_type, value: int) -> str:
         return enum_type.Name(value)
     except ValueError:
         return str(value)
+
+
+def l4_snapshot_reset_kind(snapshot_count: int) -> str:
+    if isinstance(snapshot_count, bool) or not isinstance(snapshot_count, int) or snapshot_count < 1:
+        raise ValueError("snapshot_count must be a positive integer")
+    return "initial" if snapshot_count == 1 else "replacement"
 
 
 def l2_request(args) -> pb.L2BookRequest:
@@ -139,13 +146,20 @@ def stream_l2(args):
 
 
 def stream_l4(args):
+    snapshot_count = 0
+
     def handle(update, count):
+        nonlocal snapshot_count
         if update.HasField("snapshot"):
+            snapshot_count += 1
             snapshot = update.snapshot
+            reset = l4_snapshot_reset_kind(snapshot_count)
             print(
                 f"[{count}] L4 snapshot {snapshot.coin} height={snapshot.height} "
-                f"bids={len(snapshot.bids)} asks={len(snapshot.asks)}"
+                f"reset={reset} bids={len(snapshot.bids)} asks={len(snapshot.asks)}"
             )
+            if reset == "replacement":
+                print("  replace the entire local L4 book with this snapshot")
         elif update.HasField("diff"):
             try:
                 data = json.loads(update.diff.data)
@@ -199,6 +213,8 @@ def stream_l2_diff(args):
 def stream_l4_updates(args):
     def handle(update, count):
         print(f"[{count}] L4 updates height={update.height} snapshot={update.snapshot} diffs={len(update.diffs)}")
+        if update.snapshot:
+            print("  clear local L4 order state before applying this update")
         for diff in list(update.diffs)[:5]:
             print(
                 f"  {enum_name(pb.L4OrderDiffType, diff.diff_type)} {diff.coin} "
@@ -261,6 +277,11 @@ def coin_display(args) -> tuple[str, str]:
 
 
 def main():
+    if pb is None or pb_grpc is None:
+        print("Error: Proto files not generated. Run:")
+        print("  python -m grpc_tools.protoc -I../../proto --python_out=. --grpc_python_out=. ../../proto/orderbook.proto")
+        sys.exit(1)
+
     args = parse_args()
 
     print("Hyperliquid Orderbook Stream Example")

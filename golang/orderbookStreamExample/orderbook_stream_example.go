@@ -36,6 +36,13 @@ var (
 	authToken    = envOrDefault("AUTH_TOKEN", envOrDefault("QN_AUTH_TOKEN", defaultAuthToken))
 )
 
+func l4SnapshotResetKind(snapshotCount int) string {
+	if snapshotCount == 1 {
+		return "initial"
+	}
+	return "replacement"
+}
+
 func envOrDefault(name string, fallback string) string {
 	value := os.Getenv(name)
 	if value == "" {
@@ -417,6 +424,9 @@ func streamL4BookUpdates(coins []string, maxMessages int) error {
 				retryCount = 0
 			}
 			fmt.Printf("[%d] L4 updates height=%d snapshot=%t diffs=%d\n", msgCount, update.Height, update.Snapshot, len(update.Diffs))
+			if update.Snapshot {
+				fmt.Println("  Clear local L4 order state before applying this update.")
+			}
 			for i, diff := range update.Diffs {
 				if i >= 5 {
 					break
@@ -521,6 +531,7 @@ func streamL4Orderbook(coin string, maxMessages int) error {
 
 	retryCount := 0
 	totalMsgCount := 0
+	snapshotCount := 0
 
 	for retryCount < maxRetries {
 		creds := credentials.NewClientTLSFromCert(nil, "")
@@ -585,9 +596,11 @@ func streamL4Orderbook(coin string, maxMessages int) error {
 			}
 
 			if snapshot := update.GetSnapshot(); snapshot != nil {
+				snapshotCount++
+				resetKind := l4SnapshotResetKind(snapshotCount)
 				snapshotReceived = true
 
-				fmt.Println("\n✓ L4 Snapshot Received!")
+				fmt.Printf("\n✓ L4 Snapshot Received (%s reset)!\n", resetKind)
 				fmt.Println(strings.Repeat("─", 60))
 				fmt.Printf("Coin: %s\n", snapshot.Coin)
 				fmt.Printf("Height: %d\n", snapshot.Height)
@@ -595,6 +608,9 @@ func streamL4Orderbook(coin string, maxMessages int) error {
 				fmt.Printf("Bids: %d orders\n", len(snapshot.Bids))
 				fmt.Printf("Asks: %d orders\n", len(snapshot.Asks))
 				fmt.Println(strings.Repeat("─", 60))
+				if resetKind == "replacement" {
+					fmt.Println("Replace the entire local L4 book with this snapshot.")
+				}
 
 				// Sample bids
 				if len(snapshot.Bids) > 0 {

@@ -7,7 +7,10 @@ const path = require('path');
 // Testnet: your-endpoint.hype-testnet.quiknode.pro:10000
 const GRPC_ENDPOINT = process.env.GRPC_ENDPOINT || 'your-endpoint.hype-mainnet.quiknode.pro:10000';
 const AUTH_TOKEN = process.env.AUTH_TOKEN || process.env.QN_AUTH_TOKEN || 'your-quicknode-token';
+const GRPC_PLAINTEXT = process.env.GRPC_PLAINTEXT === '1';
 const PROTO_PATH = path.join(__dirname, '..', '..', 'proto', 'orderbook.proto');
+const MAX_RECEIVE_BYTES = 100 * 1024 * 1024;
+const L4_FLOW_CONTROL_BYTES = 32 * 1024 * 1024;
 
 const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   keepCase: true,
@@ -18,11 +21,22 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 });
 const proto = grpc.loadPackageDefinition(packageDefinition).hyperliquid;
 
+function channelOptions() {
+  return {
+    'grpc.max_receive_message_length': MAX_RECEIVE_BYTES,
+    // BTC L4 snapshots contain tens of thousands of orders. A larger HTTP/2
+    // receive window prevents the server from timing out while Node decodes them.
+    'grpc-node.flow_control_window': L4_FLOW_CONTROL_BYTES,
+    'grpc.keepalive_time_ms': 30000,
+    'grpc.keepalive_timeout_ms': 10000
+  };
+}
+
 function createClient() {
   return new proto.OrderBookStreaming(
     GRPC_ENDPOINT,
-    grpc.credentials.createSsl(),
-    { 'grpc.max_receive_message_length': 100 * 1024 * 1024 }
+    GRPC_PLAINTEXT ? grpc.credentials.createInsecure() : grpc.credentials.createSsl(),
+    channelOptions()
   );
 }
 
@@ -83,6 +97,13 @@ function sleep(ms) {
 function levelText(level) {
   if (!level || !level.px) return 'n/a';
   return `${level.px} / ${level.sz} (${level.n})`;
+}
+
+function l4SnapshotResetKind(snapshotCount) {
+  if (!Number.isInteger(snapshotCount) || snapshotCount < 1) {
+    throw new Error('snapshotCount must be a positive integer');
+  }
+  return snapshotCount === 1 ? 'initial' : 'replacement';
 }
 
 function l2Request(args) {
@@ -166,12 +187,18 @@ async function streamL2(args) {
 }
 
 async function streamL4(args) {
+  let snapshotCount = 0;
   await consumeWithReconnect(
     'StreamL4Book',
     () => createClient().StreamL4Book({ coin: args.coin }, createMetadata()),
     (update, count) => {
       if (update.snapshot) {
-        console.log(`[${count}] L4 snapshot ${update.snapshot.coin} height=${update.snapshot.height} bids=${update.snapshot.bids.length} asks=${update.snapshot.asks.length}`);
+        snapshotCount += 1;
+        const reset = l4SnapshotResetKind(snapshotCount);
+        console.log(`[${count}] L4 snapshot ${update.snapshot.coin} height=${update.snapshot.height} reset=${reset} bids=${update.snapshot.bids.length} asks=${update.snapshot.asks.length}`);
+        if (reset === 'replacement') {
+          console.log('  replace the entire local L4 book with this snapshot');
+        }
       } else if (update.diff) {
         let data;
         try {
@@ -218,6 +245,7 @@ async function streamL4Updates(args) {
     () => createClient().StreamL4BookUpdates({ coins: args.coins }, createMetadata()),
     (update, count) => {
       console.log(`[${count}] L4 updates height=${update.height} snapshot=${update.snapshot} diffs=${update.diffs.length}`);
+      if (update.snapshot) console.log('  clear local L4 order state before applying this update');
       update.diffs.slice(0, 5).forEach(diff => {
         console.log(`  ${diff.diff_type} ${diff.coin} oid=${diff.oid} side=${diff.side || 'n/a'} px=${diff.px || 'n/a'} sz=${diff.sz || 'n/a'}`);
       });
@@ -274,7 +302,11 @@ async function main() {
   }
 }
 
-main().catch(err => {
-  console.error('Stream failed:', err.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch(err => {
+    console.error('Stream failed:', err.message);
+    process.exit(1);
+  });
+}
+
+module.exports = { channelOptions, l4SnapshotResetKind };
