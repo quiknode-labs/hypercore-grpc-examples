@@ -19,6 +19,7 @@ use hyperliquid::{
 const DEFAULT_GRPC_ENDPOINT: &str = "your-endpoint.hype-mainnet.quiknode.pro:10000";
 const DEFAULT_AUTH_TOKEN: &str = "YOUR_QUICKNODE_TOKEN";
 const ZSTD_MAGIC: [u8; 4] = [0x28, 0xb5, 0x2f, 0xfd];
+const HEARTBEAT_SECONDS: u64 = 30;
 
 #[derive(Debug, PartialEq, Eq)]
 struct TouchingAction {
@@ -154,8 +155,19 @@ fn auth_token() -> String {
 async fn create_channel() -> Result<Channel, Box<dyn std::error::Error>> {
     Ok(Channel::from_shared(endpoint_uri())?
         .tls_config(ClientTlsConfig::new())?
+        .http2_keep_alive_interval(Duration::from_secs(HEARTBEAT_SECONDS))
+        .keep_alive_timeout(Duration::from_secs(10))
+        .keep_alive_while_idle(true)
         .connect()
         .await?)
+}
+
+fn ping_request(timestamp: i64) -> SubscribeRequest {
+    SubscribeRequest {
+        request: Some(hyperliquid::subscribe_request::Request::Ping(Ping {
+            timestamp,
+        })),
+    }
 }
 
 fn decode_data(data: &[u8]) -> Result<String, Box<dyn std::error::Error>> {
@@ -233,16 +245,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let ping_tx = tx.clone();
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_secs(30));
+        let period = Duration::from_secs(HEARTBEAT_SECONDS);
+        let mut interval = tokio::time::interval_at(tokio::time::Instant::now() + period, period);
         loop {
             interval.tick().await;
-            let _ = ping_tx
-                .send(SubscribeRequest {
-                    request: Some(hyperliquid::subscribe_request::Request::Ping(Ping {
-                        timestamp: chrono::Utc::now().timestamp_millis(),
-                    })),
-                })
-                .await;
+            let timestamp = chrono::Utc::now().timestamp_millis();
+            println!("PING timestamp={timestamp}");
+            if ping_tx.send(ping_request(timestamp)).await.is_err() {
+                return;
+            }
         }
     });
 
@@ -281,8 +292,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let Some(response) = response else {
             return Err(format!("stream ended after {received} message(s)").into());
         };
-        let Some(hyperliquid::subscribe_update::Update::Data(data)) = response.update else {
-            continue;
+        let data = match response.update {
+            Some(hyperliquid::subscribe_update::Update::Data(data)) => data,
+            Some(hyperliquid::subscribe_update::Update::Pong(pong)) => {
+                println!("PONG timestamp={}", pong.timestamp);
+                continue;
+            }
+            None => continue,
         };
         if args.expect_no_match {
             return Err("deliberately non-matching coin returned a transaction".into());
@@ -394,5 +410,14 @@ mod tests {
             {"action": {"type": "noop", "a": 0}}
         ]});
         assert!(order_touching_actions(&raw).is_empty());
+    }
+
+    #[test]
+    fn builds_ping_request() {
+        let request = ping_request(123_456_789);
+        let Some(hyperliquid::subscribe_request::Request::Ping(ping)) = request.request else {
+            panic!("expected ping request");
+        };
+        assert_eq!(ping.timestamp, 123_456_789);
     }
 }

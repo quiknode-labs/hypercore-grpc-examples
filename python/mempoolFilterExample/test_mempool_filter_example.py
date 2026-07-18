@@ -31,6 +31,22 @@ def fixture(object_root=False):
 
 
 class MempoolFilterExtractionTests(unittest.TestCase):
+    def test_builds_application_ping_request(self):
+        class FakePing:
+            def __init__(self, timestamp):
+                self.timestamp = timestamp
+
+        class FakeSubscribeRequest:
+            def __init__(self, ping):
+                self.ping = ping
+
+        class FakePb:
+            Ping = FakePing
+            SubscribeRequest = FakeSubscribeRequest
+
+        request = MODULE.ping_request(FakePb, 123456789)
+        self.assertEqual(request.ping.timestamp, 123456789)
+
     def test_zstd_payload_encoded_as_protobuf_string(self):
         text = '["2026-07-17T00:00:00Z",{"signed_actions":[]}]'
         compressed = zstandard.ZstdCompressor().compress(text.encode())

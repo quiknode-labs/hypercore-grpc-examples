@@ -61,3 +61,10 @@ func TestInvalidAndNonOrderAssetsIgnored(t *testing.T) {
 		t.Fatalf("unexpected actions: %v", actions)
 	}
 }
+
+func TestPingRequest(t *testing.T) {
+	request := pingRequest(123456789)
+	if request.GetPing() == nil || request.GetPing().Timestamp != 123456789 {
+		t.Fatalf("unexpected ping request: %#v", request)
+	}
+}

@@ -79,11 +79,22 @@ node javascript/mempoolFilterExample/mempool_filter_example.js \
 
 Use `--unfiltered` to confirm raw stream availability before testing a filter.
 
+## Heartbeats
+
+All four examples configure transport-level gRPC keepalive and send an
+application-level `Ping` every 30 seconds. They print both
+`PING timestamp=<milliseconds>` and the corresponding
+`PONG timestamp=<milliseconds>` so customers can distinguish a healthy quiet
+filter from a disconnected stream. Heartbeat responses do not count toward
+`--max-messages` and do not satisfy a positive or negative filter test.
+
+Use a timeout longer than 30 seconds to observe a heartbeat on a quiet stream.
+
 ## Unit tests
 
 The tests cover tuple and object roots, all supported order-touching action
-shapes, invalid assets, and proof that client-side extraction does not mutate
-the parsed raw value.
+shapes, invalid assets, heartbeat request construction, and proof that
+client-side extraction does not mutate the parsed raw value.
 
 ```bash
 node --test javascript/mempoolFilterExample/mempool_filter_example.test.js

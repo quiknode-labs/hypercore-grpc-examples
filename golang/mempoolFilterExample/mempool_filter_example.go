@@ -20,6 +20,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
@@ -29,6 +30,7 @@ import (
 const (
 	defaultEndpoint = "your-endpoint.hype-mainnet.quiknode.pro:10000"
 	defaultToken    = "YOUR_QUICKNODE_TOKEN"
+	heartbeatPeriod = 30 * time.Second
 )
 
 var zstdMagic = []byte{0x28, 0xb5, 0x2f, 0xfd}
@@ -200,6 +202,10 @@ func splitValues(raw string) []string {
 	return unique(values)
 }
 
+func pingRequest(timestamp int64) *pb.SubscribeRequest {
+	return &pb.SubscribeRequest{Request: &pb.SubscribeRequest_Ping{Ping: &pb.Ping{Timestamp: timestamp}}}
+}
+
 func main() {
 	coin := flag.String("coin", "BTC", "Comma-separated coin names (OR semantics)")
 	filterField := flag.String("filter-field", "coin", "Virtual filter field: coin or coins")
@@ -225,7 +231,17 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
 	defer cancel()
 	target := strings.TrimPrefix(strings.TrimPrefix(endpoint, "https://"), "http://")
-	conn, err := grpc.DialContext(ctx, target, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS12})), grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(100*1024*1024)))
+	conn, err := grpc.DialContext(
+		ctx,
+		target,
+		grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS12})),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(100*1024*1024)),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:                heartbeatPeriod,
+			Timeout:             10 * time.Second,
+			PermitWithoutStream: true,
+		}),
+	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "FAILED: connect: %v\n", err)
 		os.Exit(1)
@@ -251,6 +267,27 @@ func main() {
 		fmt.Fprintf(os.Stderr, "FAILED: subscribe: %v\n", err)
 		os.Exit(1)
 	}
+	pingStop := make(chan struct{})
+	defer close(pingStop)
+	go func() {
+		ticker := time.NewTicker(heartbeatPeriod)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-pingStop:
+				return
+			case <-ctx.Done():
+				return
+			case now := <-ticker.C:
+				timestamp := now.UnixMilli()
+				fmt.Printf("PING timestamp=%d\n", timestamp)
+				if sendErr := stream.Send(pingRequest(timestamp)); sendErr != nil {
+					fmt.Fprintf(os.Stderr, "heartbeat send stopped: %v\n", sendErr)
+					return
+				}
+			}
+		}
+	}()
 
 	expected := make(map[string]struct{})
 	for _, id := range splitValues(*expectedRaw) {
@@ -269,6 +306,10 @@ func main() {
 			}
 			fmt.Fprintf(os.Stderr, "FAILED: receive: %v\n", recvErr)
 			os.Exit(1)
+		}
+		if pong := response.GetPong(); pong != nil {
+			fmt.Printf("PONG timestamp=%d\n", pong.Timestamp)
+			continue
 		}
 		data := response.GetData()
 		if data == nil {

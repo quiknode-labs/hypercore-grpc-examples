@@ -28,6 +28,7 @@ ORDER_TOUCHING_TYPES = {
     "twapOrder",
     "twapCancel",
 }
+HEARTBEAT_SECONDS = 30
 
 
 def signed_actions(value: Any) -> list[dict[str, Any]]:
@@ -125,6 +126,10 @@ def protobuf_modules():
     return pb, pb_grpc
 
 
+def ping_request(pb: Any, timestamp: int):
+    return pb.SubscribeRequest(ping=pb.Ping(timestamp=timestamp))
+
+
 def request_stream(pb: Any, filters: dict[str, list[str]]):
     subscribe = pb.StreamSubscribe(
         stream_type=pb.MEMPOOL_TXS,
@@ -135,8 +140,10 @@ def request_stream(pb: Any, filters: dict[str, list[str]]):
         subscribe.filters[field].values.extend(values)
     yield pb.SubscribeRequest(subscribe=subscribe)
     while True:
-        time.sleep(30)
-        yield pb.SubscribeRequest(ping=pb.Ping(timestamp=int(time.time() * 1000)))
+        time.sleep(HEARTBEAT_SECONDS)
+        timestamp = int(time.time() * 1000)
+        print(f"PING timestamp={timestamp}")
+        yield ping_request(pb, timestamp)
 
 
 def run(args: argparse.Namespace) -> int:
@@ -165,6 +172,9 @@ def run(args: argparse.Namespace) -> int:
             timeout=args.timeout_seconds,
         )
         for response in responses:
+            if response.HasField("pong"):
+                print(f"PONG timestamp={response.pong.timestamp}")
+                continue
             if not response.HasField("data"):
                 continue
             if args.expect_no_match:

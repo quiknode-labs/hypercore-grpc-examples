@@ -6,8 +6,14 @@ const {
   decompress,
   orderTouchingActions,
   orderTouchingAssetIds,
+  pingRequest,
   signedActions
 } = require('./mempool_filter_example');
+
+test('builds an application-level ping request', () => {
+  assert.deepEqual(pingRequest(123456789), { ping: { timestamp: 123456789 } });
+  assert.throws(() => pingRequest(-1), /non-negative safe integer/);
+});
 
 test('decompresses zstd payloads represented by protobuf as latin-1 strings', async () => {
   const json = JSON.stringify(fixture());

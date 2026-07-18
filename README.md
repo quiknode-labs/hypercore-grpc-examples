@@ -129,7 +129,8 @@ python3 python/mempoolFilterExample/mempool_filter_example.py --max-messages 5
 
 The filter spans `order`, `cancel`, `cancelByCloid`, `batchModify`, `modify`,
 `twapOrder`, and `twapCancel`. See [Mempool Filtering](docs/mempool-filtering.md)
-for semantics, non-matching controls, raw output, and unit-test commands.
+for semantics, visible 30-second Ping/Pong heartbeats, non-matching controls,
+raw output, and unit-test commands.
 
 ## Filtering
 

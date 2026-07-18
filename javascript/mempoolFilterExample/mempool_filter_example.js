@@ -19,6 +19,7 @@ const AUTH_TOKEN = process.env.AUTH_TOKEN || process.env.QN_AUTH_TOKEN || DEFAUL
 const GRPC_PLAINTEXT = process.env.GRPC_PLAINTEXT === '1';
 const PROTO_PATH = path.join(__dirname, '..', '..', 'proto', 'hyperliquid.proto');
 const ZSTD_MAGIC = Buffer.from([0x28, 0xb5, 0x2f, 0xfd]);
+const HEARTBEAT_INTERVAL_MS = 30000;
 
 const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   keepCase: true,
@@ -59,6 +60,13 @@ function parseValues(value, optionName) {
     throw new Error(`--${optionName} must contain at least one value`);
   }
   return [...new Set(values)];
+}
+
+function pingRequest(timestamp) {
+  if (!Number.isSafeInteger(timestamp) || timestamp < 0) {
+    throw new Error('ping timestamp must be a non-negative safe integer');
+  }
+  return { ping: { timestamp } };
 }
 
 async function decompress(data) {
@@ -235,7 +243,12 @@ async function main() {
   console.log(`Endpoint: ${GRPC_ENDPOINT}`);
 
   call.on('data', response => {
-    if (finished || !response.data) return;
+    if (finished) return;
+    if (response.pong) {
+      console.log(`PONG timestamp=${response.pong.timestamp}`);
+      return;
+    }
+    if (!response.data) return;
     const payload = response.data.data;
     processing = processing.then(async () => {
       if (finished) return;
@@ -301,8 +314,11 @@ async function main() {
   });
 
   pingTimer = setInterval(() => {
-    if (!finished) call.write({ ping: { timestamp: Date.now() } });
-  }, 30000);
+    if (finished) return;
+    const timestamp = Date.now();
+    console.log(`PING timestamp=${timestamp}`);
+    call.write(pingRequest(timestamp));
+  }, HEARTBEAT_INTERVAL_MS);
   timeoutTimer = setTimeout(() => {
     if (expectNoMatch) {
       finish(0, `PASS: no ${streamType} messages matched ${filterField} in [${filterValues.join(', ')}] within ${timeoutSeconds}s`);
@@ -326,5 +342,6 @@ module.exports = {
   orderTouchingActions,
   orderTouchingAssetIds,
   parseAssetIds,
+  pingRequest,
   signedActions
 };
