@@ -43,6 +43,11 @@ node orderbook_stream_example.js --mode=l4 --coin=BTC
 npm run l4
 ```
 
+Version `1.0.70` preserves ALO priority-fee queue ordering without changing the
+public response shape. The stream can send a full snapshot again after normal
+diffs. The example labels it `reset=replacement`; discard the entire local L4
+book and rebuild `bids` and `asks` in the emitted order.
+
 ### Stream BBO (Best Bid/Offer)
 
 ```bash
@@ -118,3 +123,6 @@ npm run tpsl
 ## Auto-Reconnect
 
 The example includes automatic reconnection with exponential backoff when the server returns `DATA_LOSS`. For `l4-updates` and `tpsl`, clients should rebuild local state from the next `snapshot=true` message after reconnecting.
+
+The typed `l4-updates` stream uses the same reset contract through
+`snapshot=true`: clear local order state before applying that update.

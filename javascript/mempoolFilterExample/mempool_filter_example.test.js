@@ -1,11 +1,22 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
+const zstd = require('@mongodb-js/zstd');
 
 const {
+  decompress,
   orderTouchingActions,
   orderTouchingAssetIds,
   signedActions
 } = require('./mempool_filter_example');
+
+test('decompresses zstd payloads represented by protobuf as latin-1 strings', async () => {
+  const json = JSON.stringify(fixture());
+  const compressed = await zstd.compress(Buffer.from(json));
+  const protobufString = compressed.toString('latin1');
+
+  assert.equal(await decompress(protobufString), json);
+  assert.equal(await decompress(json), json);
+});
 
 function fixture(root = 'tuple') {
   const tx = {

@@ -54,6 +54,13 @@ The `hyperliquid.OrderBookStreaming` service exposes full-book streams plus lowe
 | `StreamL4BookUpdates` | New typed L4 order-level changes |
 | `StreamTpslUpdates` | New typed TP/SL trigger-order lifecycle changes |
 
+Version `1.0.70` keeps L4 books correctly ordered when ALO priority fees change
+queue placement. The public response schema is unchanged: `StreamL4Book` emits
+an authoritative replacement snapshot, and `StreamL4BookUpdates` emits an
+update with `snapshot=true`. Clients must clear and rebuild local state whenever
+either stream sends a snapshot, not only on initial subscription. See
+[L4 ALO Queue Priority](docs/orderbook-streaming.md#l4-alo-queue-priority).
+
 Run BBO with your hosted QuickNode endpoint:
 
 ```bash

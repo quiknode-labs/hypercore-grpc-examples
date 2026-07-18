@@ -67,6 +67,14 @@ fn level_text(level: Option<&hyperliquid::L2Level>) -> String {
     }
 }
 
+fn l4_snapshot_reset_kind(snapshot_count: usize) -> &'static str {
+    if snapshot_count == 1 {
+        "initial"
+    } else {
+        "replacement"
+    }
+}
+
 async fn stream_l2_orderbook(
     coin: &str,
     n_levels: u32,
@@ -431,6 +439,9 @@ async fn stream_l4_book_updates(
                         update.snapshot,
                         update.diffs.len()
                     );
+                    if update.snapshot {
+                        println!("  Clear local L4 order state before applying this update.");
+                    }
                     for diff in update.diffs.iter().take(5) {
                         println!(
                             "  type={} {} oid={} side={} px={} sz={}",
@@ -570,6 +581,7 @@ async fn stream_l4_orderbook(
 
     let mut retry_count = 0;
     let mut total_msg_count = 0;
+    let mut snapshot_count = 0usize;
 
     while retry_count < MAX_RETRIES {
         let endpoint = grpc_endpoint();
@@ -621,9 +633,11 @@ async fn stream_l4_orderbook(
 
                     match update.update {
                         Some(hyperliquid::l4_book_update::Update::Snapshot(snapshot)) => {
+                            snapshot_count += 1;
+                            let reset_kind = l4_snapshot_reset_kind(snapshot_count);
                             snapshot_received = true;
 
-                            println!("\n✓ L4 Snapshot Received!");
+                            println!("\n✓ L4 Snapshot Received ({reset_kind} reset)!");
                             println!("{}", "─".repeat(60));
                             println!("Coin: {}", snapshot.coin);
                             println!("Height: {}", snapshot.height);
@@ -631,6 +645,9 @@ async fn stream_l4_orderbook(
                             println!("Bids: {} orders", snapshot.bids.len());
                             println!("Asks: {} orders", snapshot.asks.len());
                             println!("{}", "─".repeat(60));
+                            if reset_kind == "replacement" {
+                                println!("Replace the entire local L4 book with this snapshot.");
+                            }
 
                             // Sample bids
                             if !snapshot.bids.is_empty() {
@@ -743,6 +760,22 @@ async fn stream_l4_orderbook(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::l4_snapshot_reset_kind;
+
+    #[test]
+    fn first_l4_snapshot_is_initial() {
+        assert_eq!(l4_snapshot_reset_kind(1), "initial");
+    }
+
+    #[test]
+    fn later_l4_snapshots_are_replacements() {
+        assert_eq!(l4_snapshot_reset_kind(2), "replacement");
+        assert_eq!(l4_snapshot_reset_kind(10), "replacement");
+    }
 }
 
 #[tokio::main]

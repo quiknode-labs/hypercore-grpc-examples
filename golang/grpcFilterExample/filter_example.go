@@ -94,7 +94,7 @@ func streamWithFilter() error {
 		}
 
 		if data := resp.GetData(); data != nil {
-			decompressed, _ := decompress(data.Data)
+			decompressed, _ := decompress([]byte(data.Data))
 			var parsed interface{}
 			if json.Unmarshal([]byte(decompressed), &parsed) == nil {
 				pretty, _ := json.MarshalIndent(parsed, "", "  ")

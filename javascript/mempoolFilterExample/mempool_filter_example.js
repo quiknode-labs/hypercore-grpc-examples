@@ -3,7 +3,7 @@
 // Filter raw Hyperliquid mempool transactions by coin name.
 //
 // MEMPOOL_TXS payloads contain numeric asset IDs rather than a top-level coin
-// field. Raptor resolves `coin=BTC` dynamically on the server and applies it to
+// field. The gRPC service resolves `coin=BTC` dynamically and applies it to
 // every order-touching action. The original raw tuple/object is returned
 // unchanged when any action in the transaction touches the requested coin.
 
@@ -62,7 +62,13 @@ function parseValues(value, optionName) {
 }
 
 async function decompress(data) {
-  if (typeof data === 'string') return data;
+  if (typeof data === 'string') {
+    const raw = Buffer.from(data, 'latin1');
+    if (raw.length >= 4 && raw.subarray(0, 4).equals(ZSTD_MAGIC)) {
+      return (await zstd.decompress(raw)).toString('utf8');
+    }
+    return data;
+  }
   if (!Buffer.isBuffer(data)) return String(data);
   if (data.length >= 4 && data.subarray(0, 4).equals(ZSTD_MAGIC)) {
     return (await zstd.decompress(data)).toString('utf8');
@@ -312,6 +318,7 @@ if (require.main === module) {
 
 module.exports = {
   actionTypes,
+  decompress,
   orderTouchingActions,
   orderTouchingAssetIds,
   parseAssetIds,

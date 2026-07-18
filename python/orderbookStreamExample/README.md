@@ -50,6 +50,11 @@ python orderbook_stream_example.py --mode l4 --coin BTC
 python orderbook_stream_example.py --mode l4 --coin ETH --max-messages 100
 ```
 
+Version `1.0.70` preserves ALO priority-fee queue ordering without changing the
+public response shape. The stream can send a full snapshot again after normal
+diffs. The example labels it `reset=replacement`; discard the entire local L4
+book and rebuild `bids` and `asks` in the emitted order.
+
 ### Typed L4 Updates
 
 ```bash
@@ -81,4 +86,6 @@ python orderbook_stream_example.py --mode tpsl --all
 - In `StreamL2BookDiff`, `sz: "0"` and `n: 0` means remove that price level.
 - In `StreamL2BookDiff`, `snapshot=true` means reset local state before applying the included levels.
 - In `StreamL4BookUpdates` and `StreamTpslUpdates`, `DATA_LOSS` means reconnect and rebuild from the next `snapshot=true` message.
+- On `StreamL4Book`, treat every snapshot as authoritative and replace the entire local book.
+- On `StreamL4BookUpdates`, clear local order state whenever `snapshot=true` before applying the update.
 - Position TP/SL rows can have `sz: "0.0"` because that is what the node emits.

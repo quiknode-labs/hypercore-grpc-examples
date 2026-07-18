@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Validate server-side coin filtering on raw Hyperliquid MEMPOOL_TXS.
 
-The payload does not contain a top-level ``coin`` field. Raptor resolves coin
+The payload does not contain a top-level ``coin`` field. The gRPC service resolves coin
 names dynamically and matches numeric asset IDs across every order-touching
 action, while returning the original raw tuple/object unchanged.
 """
@@ -99,6 +99,14 @@ def order_touching_asset_ids(value: Any) -> list[str]:
 
 def decode_data(data: Any) -> str:
     if isinstance(data, str):
+        try:
+            raw = data.encode("latin-1")
+        except UnicodeEncodeError:
+            return data
+        if raw.startswith(bytes((0x28, 0xB5, 0x2F, 0xFD))):
+            import zstandard  # Imported lazily so extractor unit tests need no native dependency.
+
+            return zstandard.ZstdDecompressor().decompress(raw).decode()
         return data
     raw = bytes(data)
     if raw.startswith(bytes((0x28, 0xB5, 0x2F, 0xFD))):

@@ -3,6 +3,8 @@ import importlib.util
 from pathlib import Path
 import unittest
 
+import zstandard
+
 
 MODULE_PATH = Path(__file__).with_name("mempool_filter_example.py")
 SPEC = importlib.util.spec_from_file_location("mempool_filter_example", MODULE_PATH)
@@ -29,6 +31,14 @@ def fixture(object_root=False):
 
 
 class MempoolFilterExtractionTests(unittest.TestCase):
+    def test_zstd_payload_encoded_as_protobuf_string(self):
+        text = '["2026-07-17T00:00:00Z",{"signed_actions":[]}]'
+        compressed = zstandard.ZstdCompressor().compress(text.encode())
+        protobuf_string = compressed.decode("latin-1")
+
+        self.assertEqual(MODULE.decode_data(protobuf_string), text)
+        self.assertEqual(MODULE.decode_data(text), text)
+
     def test_all_order_touching_actions_and_raw_tuple_preserved(self):
         raw = fixture()
         before = copy.deepcopy(raw)

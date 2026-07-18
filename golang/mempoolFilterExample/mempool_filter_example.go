@@ -1,6 +1,6 @@
 package main
 
-// This example filters raw MEMPOOL_TXS with coin=BTC. Raptor resolves the coin
+// This example filters raw MEMPOOL_TXS with coin=BTC. The gRPC service resolves the coin
 // dynamically to numeric asset IDs and matches all order-touching action types.
 // Matching transactions retain the original raw JSON tuple/object.
 

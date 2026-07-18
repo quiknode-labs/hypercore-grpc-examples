@@ -107,3 +107,41 @@ For `StreamTpslUpdates`, `--all` means all perp coins.
 - In `StreamL2BookDiff`, a level with `sz: "0"` and `n: 0` means remove that price level.
 - In `StreamL4BookUpdates` and `StreamTpslUpdates`, `DATA_LOSS` means reconnect and rebuild from the next `snapshot=true` message.
 - Position TP/SL orders can have `sz: "0.0"` because that is what the node emits.
+
+## L4 ALO Queue Priority
+
+Version `1.0.70` accounts for Hyperliquid's ALO priority-fee queue insertions
+without changing the public gRPC or JSON schemas. The upstream `insertBefore`
+metadata is used to construct the canonical queue but is not added to customer
+diff payloads.
+
+Instead, the L4 streams use their existing snapshot mechanisms:
+
+- `StreamL4Book` can send another `L4BookSnapshot` after the initial snapshot.
+  Discard both sides of the local book and rebuild them from `bids` and `asks`
+  in the order emitted. Continue applying later raw diffs from that snapshot's
+  `height`.
+- `StreamL4BookUpdates` can send an update with `snapshot=true`. Clear the
+  keyed local order state before applying every order in that update.
+
+Treat every snapshot as authoritative, including snapshots received after
+normal incremental updates. A replacement snapshot may be sent for an ALO
+queue insertion or when stream state is rebuilt. Clients that already reset on
+every snapshot require no wire-format changes. Clients that assumed the first
+snapshot was the only snapshot must update that behavior to preserve exact L4
+queue order.
+
+This is not a breaking response change: no protobuf field was added or removed,
+and raw diff JSON retains its existing shape. For live book maintenance, the
+replacement snapshot contains the complete canonical state at its height. It
+replaces the priority-insertion diff rather than exposing that internal
+mutation as a new public event shape.
+
+Replacement snapshots contain the full L4 depth and can be much larger than an
+incremental update, especially for BTC. Clients should allow at least 100 MB
+for inbound gRPC messages, as the examples do, and apply each reset atomically
+before processing later updates.
+
+The JavaScript, Python, Go, and Rust `l4` examples label snapshots as
+`reset=initial` or `reset=replacement` and explicitly call out when the entire
+local L4 book must be replaced.

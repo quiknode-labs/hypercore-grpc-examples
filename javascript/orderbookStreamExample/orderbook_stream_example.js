@@ -86,6 +86,13 @@ function levelText(level) {
   return `${level.px} / ${level.sz} (${level.n})`;
 }
 
+function l4SnapshotResetKind(snapshotCount) {
+  if (!Number.isInteger(snapshotCount) || snapshotCount < 1) {
+    throw new Error('snapshotCount must be a positive integer');
+  }
+  return snapshotCount === 1 ? 'initial' : 'replacement';
+}
+
 function l2Request(args) {
   const request = {
     coin: args.coin,
@@ -167,12 +174,18 @@ async function streamL2(args) {
 }
 
 async function streamL4(args) {
+  let snapshotCount = 0;
   await consumeWithReconnect(
     'StreamL4Book',
     () => createClient().StreamL4Book({ coin: args.coin }, createMetadata()),
     (update, count) => {
       if (update.snapshot) {
-        console.log(`[${count}] L4 snapshot ${update.snapshot.coin} height=${update.snapshot.height} bids=${update.snapshot.bids.length} asks=${update.snapshot.asks.length}`);
+        snapshotCount += 1;
+        const reset = l4SnapshotResetKind(snapshotCount);
+        console.log(`[${count}] L4 snapshot ${update.snapshot.coin} height=${update.snapshot.height} reset=${reset} bids=${update.snapshot.bids.length} asks=${update.snapshot.asks.length}`);
+        if (reset === 'replacement') {
+          console.log('  replace the entire local L4 book with this snapshot');
+        }
       } else if (update.diff) {
         let data;
         try {
@@ -219,6 +232,7 @@ async function streamL4Updates(args) {
     () => createClient().StreamL4BookUpdates({ coins: args.coins }, createMetadata()),
     (update, count) => {
       console.log(`[${count}] L4 updates height=${update.height} snapshot=${update.snapshot} diffs=${update.diffs.length}`);
+      if (update.snapshot) console.log('  clear local L4 order state before applying this update');
       update.diffs.slice(0, 5).forEach(diff => {
         console.log(`  ${diff.diff_type} ${diff.coin} oid=${diff.oid} side=${diff.side || 'n/a'} px=${diff.px || 'n/a'} sz=${diff.sz || 'n/a'}`);
       });
@@ -275,7 +289,11 @@ async function main() {
   }
 }
 
-main().catch(err => {
-  console.error('Stream failed:', err.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch(err => {
+    console.error('Stream failed:', err.message);
+    process.exit(1);
+  });
+}
+
+module.exports = { l4SnapshotResetKind };
