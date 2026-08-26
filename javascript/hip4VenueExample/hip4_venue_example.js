@@ -26,7 +26,7 @@ const zstd = require('@mongodb-js/zstd');
 const GRPC_ENDPOINT = 'your-endpoint.hype-testnet.quiknode.pro:10000';
 const AUTH_TOKEN = 'your-auth-token';
 const VENUE_NAME = 'txyz'; // an active venue from {"type":"outcomeMeta"}
-const PROTO_PATH = path.join(__dirname, '..', 'proto', 'hyperliquid.proto');
+const PROTO_PATH = path.join(__dirname, '..', '..', 'proto', 'hyperliquid.proto');
 
 const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   keepCase: true,

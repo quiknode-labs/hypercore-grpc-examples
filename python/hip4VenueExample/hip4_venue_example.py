@@ -16,11 +16,25 @@
 # (fields: outcomes[].venue, deployers[].venue).
 import grpc
 import json
+import sys
 import time
+from pathlib import Path
+
 import zstandard as zstd
 
-import hyperliquid_pb2 as pb
-import hyperliquid_pb2_grpc as pb_grpc
+# Stubs are generated into python/ by `cd python && ./generate_proto.sh`;
+# put that directory on sys.path so this runs from any working directory.
+GENERATED_PROTO_DIR = str(Path(__file__).resolve().parents[1])
+if GENERATED_PROTO_DIR not in sys.path:
+    sys.path.insert(0, GENERATED_PROTO_DIR)
+
+try:
+    import hyperliquid_pb2 as pb
+    import hyperliquid_pb2_grpc as pb_grpc
+except ModuleNotFoundError as error:
+    raise SystemExit(
+        "Python protobuf stubs are missing; run `cd python && ./generate_proto.sh`"
+    ) from error
 
 # HIP-4 launches on testnet first; use your testnet endpoint until mainnet
 # venues go live.
