@@ -183,12 +183,25 @@ type StreamSubscribe struct {
 	// Generic filters - field name to allowed values
 	// Recursively searches each event for matching field/value pairs
 	// Example: {"coin": ["ETH", "BTC"], "user": ["0x123..."], "type": ["deposit"]}
+	//
+	// Reserved server-resolved keys (not matched against event JSON):
+	//
+	//	"venue"/"deployer": select all markets of a HIP-4 outcome venue or
+	//	HIP-3 dex by its name, or by its deployer address. Expanded to the
+	//	venue's coin set server-side; unknown venues match nothing.
 	Filters map[string]*FilterValues `protobuf:"bytes,3,rep,name=filters,proto3" json:"filters,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// Optional name for this filter
 	// Allows multiple independent filters per stream (OR logic)
-	FilterName    string `protobuf:"bytes,4,opt,name=filter_name,json=filterName,proto3" json:"filter_name,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	FilterName string `protobuf:"bytes,4,opt,name=filter_name,json=filterName,proto3" json:"filter_name,omitempty"`
+	// Opt-in payload enrichment for this stream type (TRADES/ORDERS only).
+	// One setting per (connection, stream type); the latest accepted subscribe
+	// wins. Requires signer enrichment to be enabled on the server.
+	Enrichment *EnrichmentOptions `protobuf:"bytes,5,opt,name=enrichment,proto3" json:"enrichment,omitempty"`
+	// Optional client-chosen tag echoed on every update for this stream type.
+	// One tag per (connection, stream type); the latest subscribe wins.
+	SubscriptionId string `protobuf:"bytes,6,opt,name=subscription_id,json=subscriptionId,proto3" json:"subscription_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *StreamSubscribe) Reset() {
@@ -249,6 +262,70 @@ func (x *StreamSubscribe) GetFilterName() string {
 	return ""
 }
 
+func (x *StreamSubscribe) GetEnrichment() *EnrichmentOptions {
+	if x != nil {
+		return x.Enrichment
+	}
+	return nil
+}
+
+func (x *StreamSubscribe) GetSubscriptionId() string {
+	if x != nil {
+		return x.SubscriptionId
+	}
+	return ""
+}
+
+// Server-side enrichment of event payloads.
+type EnrichmentOptions struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Add "signer": the wallet that actually SUBMITTED the order (the master
+	// itself, or the approved API/agent wallet that signed on its behalf),
+	// recovered from the action's signature. Events with no originating signed
+	// transaction (trigger fires, liquidations, TWAP children) carry
+	// "signer": null. Payloads are re-serialized when enrichment is on.
+	IncludeSigner bool `protobuf:"varint,1,opt,name=include_signer,json=includeSigner,proto3" json:"include_signer,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EnrichmentOptions) Reset() {
+	*x = EnrichmentOptions{}
+	mi := &file_hyperliquid_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnrichmentOptions) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnrichmentOptions) ProtoMessage() {}
+
+func (x *EnrichmentOptions) ProtoReflect() protoreflect.Message {
+	mi := &file_hyperliquid_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnrichmentOptions.ProtoReflect.Descriptor instead.
+func (*EnrichmentOptions) Descriptor() ([]byte, []int) {
+	return file_hyperliquid_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *EnrichmentOptions) GetIncludeSigner() bool {
+	if x != nil {
+		return x.IncludeSigner
+	}
+	return false
+}
+
 // Container for filter values
 type FilterValues struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -259,7 +336,7 @@ type FilterValues struct {
 
 func (x *FilterValues) Reset() {
 	*x = FilterValues{}
-	mi := &file_hyperliquid_proto_msgTypes[2]
+	mi := &file_hyperliquid_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -271,7 +348,7 @@ func (x *FilterValues) String() string {
 func (*FilterValues) ProtoMessage() {}
 
 func (x *FilterValues) ProtoReflect() protoreflect.Message {
-	mi := &file_hyperliquid_proto_msgTypes[2]
+	mi := &file_hyperliquid_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -284,7 +361,7 @@ func (x *FilterValues) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilterValues.ProtoReflect.Descriptor instead.
 func (*FilterValues) Descriptor() ([]byte, []int) {
-	return file_hyperliquid_proto_rawDescGZIP(), []int{2}
+	return file_hyperliquid_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *FilterValues) GetValues() []string {
@@ -303,7 +380,7 @@ type Ping struct {
 
 func (x *Ping) Reset() {
 	*x = Ping{}
-	mi := &file_hyperliquid_proto_msgTypes[3]
+	mi := &file_hyperliquid_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -315,7 +392,7 @@ func (x *Ping) String() string {
 func (*Ping) ProtoMessage() {}
 
 func (x *Ping) ProtoReflect() protoreflect.Message {
-	mi := &file_hyperliquid_proto_msgTypes[3]
+	mi := &file_hyperliquid_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -328,7 +405,7 @@ func (x *Ping) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Ping.ProtoReflect.Descriptor instead.
 func (*Ping) Descriptor() ([]byte, []int) {
-	return file_hyperliquid_proto_rawDescGZIP(), []int{3}
+	return file_hyperliquid_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Ping) GetTimestamp() int64 {
@@ -351,7 +428,7 @@ type SubscribeUpdate struct {
 
 func (x *SubscribeUpdate) Reset() {
 	*x = SubscribeUpdate{}
-	mi := &file_hyperliquid_proto_msgTypes[4]
+	mi := &file_hyperliquid_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -363,7 +440,7 @@ func (x *SubscribeUpdate) String() string {
 func (*SubscribeUpdate) ProtoMessage() {}
 
 func (x *SubscribeUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_hyperliquid_proto_msgTypes[4]
+	mi := &file_hyperliquid_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -376,7 +453,7 @@ func (x *SubscribeUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubscribeUpdate.ProtoReflect.Descriptor instead.
 func (*SubscribeUpdate) Descriptor() ([]byte, []int) {
-	return file_hyperliquid_proto_rawDescGZIP(), []int{4}
+	return file_hyperliquid_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *SubscribeUpdate) GetUpdate() isSubscribeUpdate_Update {
@@ -425,14 +502,20 @@ type StreamResponse struct {
 	BlockNumber uint64                 `protobuf:"varint,1,opt,name=block_number,json=blockNumber,proto3" json:"block_number,omitempty"`
 	Timestamp   uint64                 `protobuf:"varint,2,opt,name=timestamp,proto3" json:"timestamp,omitempty"` // Server ingress timestamp
 	// Raw JSON data from the file (Exact replica of source)
-	Data          string `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Data string `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
+	// Which subscription this update belongs to. Always populated by servers
+	// that support it; UNKNOWN when the server predates this field.
+	StreamType StreamType `protobuf:"varint,4,opt,name=stream_type,json=streamType,proto3,enum=hyperliquid.StreamType" json:"stream_type,omitempty"`
+	// Echo of StreamSubscribe.subscription_id for this stream type. Empty when
+	// the client did not set one or the server predates this field.
+	SubscriptionId string `protobuf:"bytes,5,opt,name=subscription_id,json=subscriptionId,proto3" json:"subscription_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *StreamResponse) Reset() {
 	*x = StreamResponse{}
-	mi := &file_hyperliquid_proto_msgTypes[5]
+	mi := &file_hyperliquid_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -444,7 +527,7 @@ func (x *StreamResponse) String() string {
 func (*StreamResponse) ProtoMessage() {}
 
 func (x *StreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_hyperliquid_proto_msgTypes[5]
+	mi := &file_hyperliquid_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -457,7 +540,7 @@ func (x *StreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamResponse.ProtoReflect.Descriptor instead.
 func (*StreamResponse) Descriptor() ([]byte, []int) {
-	return file_hyperliquid_proto_rawDescGZIP(), []int{5}
+	return file_hyperliquid_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *StreamResponse) GetBlockNumber() uint64 {
@@ -481,6 +564,20 @@ func (x *StreamResponse) GetData() string {
 	return ""
 }
 
+func (x *StreamResponse) GetStreamType() StreamType {
+	if x != nil {
+		return x.StreamType
+	}
+	return StreamType_UNKNOWN
+}
+
+func (x *StreamResponse) GetSubscriptionId() string {
+	if x != nil {
+		return x.SubscriptionId
+	}
+	return ""
+}
+
 type Block struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	DataJson      string                 `protobuf:"bytes,1,opt,name=data_json,json=dataJson,proto3" json:"data_json,omitempty"`
@@ -490,7 +587,7 @@ type Block struct {
 
 func (x *Block) Reset() {
 	*x = Block{}
-	mi := &file_hyperliquid_proto_msgTypes[6]
+	mi := &file_hyperliquid_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -502,7 +599,7 @@ func (x *Block) String() string {
 func (*Block) ProtoMessage() {}
 
 func (x *Block) ProtoReflect() protoreflect.Message {
-	mi := &file_hyperliquid_proto_msgTypes[6]
+	mi := &file_hyperliquid_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -515,7 +612,7 @@ func (x *Block) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Block.ProtoReflect.Descriptor instead.
 func (*Block) Descriptor() ([]byte, []int) {
-	return file_hyperliquid_proto_rawDescGZIP(), []int{6}
+	return file_hyperliquid_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *Block) GetDataJson() string {
@@ -534,7 +631,7 @@ type Pong struct {
 
 func (x *Pong) Reset() {
 	*x = Pong{}
-	mi := &file_hyperliquid_proto_msgTypes[7]
+	mi := &file_hyperliquid_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -546,7 +643,7 @@ func (x *Pong) String() string {
 func (*Pong) ProtoMessage() {}
 
 func (x *Pong) ProtoReflect() protoreflect.Message {
-	mi := &file_hyperliquid_proto_msgTypes[7]
+	mi := &file_hyperliquid_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -559,7 +656,7 @@ func (x *Pong) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Pong.ProtoReflect.Descriptor instead.
 func (*Pong) Descriptor() ([]byte, []int) {
-	return file_hyperliquid_proto_rawDescGZIP(), []int{7}
+	return file_hyperliquid_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Pong) GetTimestamp() int64 {
@@ -578,7 +675,7 @@ type Timestamp struct {
 
 func (x *Timestamp) Reset() {
 	*x = Timestamp{}
-	mi := &file_hyperliquid_proto_msgTypes[8]
+	mi := &file_hyperliquid_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -590,7 +687,7 @@ func (x *Timestamp) String() string {
 func (*Timestamp) ProtoMessage() {}
 
 func (x *Timestamp) ProtoReflect() protoreflect.Message {
-	mi := &file_hyperliquid_proto_msgTypes[8]
+	mi := &file_hyperliquid_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -603,7 +700,7 @@ func (x *Timestamp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Timestamp.ProtoReflect.Descriptor instead.
 func (*Timestamp) Descriptor() ([]byte, []int) {
-	return file_hyperliquid_proto_rawDescGZIP(), []int{8}
+	return file_hyperliquid_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *Timestamp) GetTimestamp() int64 {
@@ -622,7 +719,7 @@ type PingRequest struct {
 
 func (x *PingRequest) Reset() {
 	*x = PingRequest{}
-	mi := &file_hyperliquid_proto_msgTypes[9]
+	mi := &file_hyperliquid_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -634,7 +731,7 @@ func (x *PingRequest) String() string {
 func (*PingRequest) ProtoMessage() {}
 
 func (x *PingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_hyperliquid_proto_msgTypes[9]
+	mi := &file_hyperliquid_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -647,7 +744,7 @@ func (x *PingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PingRequest.ProtoReflect.Descriptor instead.
 func (*PingRequest) Descriptor() ([]byte, []int) {
-	return file_hyperliquid_proto_rawDescGZIP(), []int{9}
+	return file_hyperliquid_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *PingRequest) GetCount() int32 {
@@ -666,7 +763,7 @@ type PingResponse struct {
 
 func (x *PingResponse) Reset() {
 	*x = PingResponse{}
-	mi := &file_hyperliquid_proto_msgTypes[10]
+	mi := &file_hyperliquid_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -678,7 +775,7 @@ func (x *PingResponse) String() string {
 func (*PingResponse) ProtoMessage() {}
 
 func (x *PingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_hyperliquid_proto_msgTypes[10]
+	mi := &file_hyperliquid_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -691,7 +788,7 @@ func (x *PingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PingResponse.ProtoReflect.Descriptor instead.
 func (*PingResponse) Descriptor() ([]byte, []int) {
-	return file_hyperliquid_proto_rawDescGZIP(), []int{10}
+	return file_hyperliquid_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *PingResponse) GetCount() int32 {
@@ -709,7 +806,7 @@ const file_hyperliquid_proto_rawDesc = "" +
 	"\x10SubscribeRequest\x12<\n" +
 	"\tsubscribe\x18\x01 \x01(\v2\x1c.hyperliquid.StreamSubscribeH\x00R\tsubscribe\x12'\n" +
 	"\x04ping\x18\x03 \x01(\v2\x11.hyperliquid.PingH\x00R\x04pingB\t\n" +
-	"\arequestJ\x04\b\x02\x10\x03\"\xa9\x02\n" +
+	"\arequestJ\x04\b\x02\x10\x03\"\x92\x03\n" +
 	"\x0fStreamSubscribe\x128\n" +
 	"\vstream_type\x18\x01 \x01(\x0e2\x17.hyperliquid.StreamTypeR\n" +
 	"streamType\x12\x1f\n" +
@@ -717,10 +814,16 @@ const file_hyperliquid_proto_rawDesc = "" +
 	"startBlock\x12C\n" +
 	"\afilters\x18\x03 \x03(\v2).hyperliquid.StreamSubscribe.FiltersEntryR\afilters\x12\x1f\n" +
 	"\vfilter_name\x18\x04 \x01(\tR\n" +
-	"filterName\x1aU\n" +
+	"filterName\x12>\n" +
+	"\n" +
+	"enrichment\x18\x05 \x01(\v2\x1e.hyperliquid.EnrichmentOptionsR\n" +
+	"enrichment\x12'\n" +
+	"\x0fsubscription_id\x18\x06 \x01(\tR\x0esubscriptionId\x1aU\n" +
 	"\fFiltersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12/\n" +
-	"\x05value\x18\x02 \x01(\v2\x19.hyperliquid.FilterValuesR\x05value:\x028\x01\"&\n" +
+	"\x05value\x18\x02 \x01(\v2\x19.hyperliquid.FilterValuesR\x05value:\x028\x01\":\n" +
+	"\x11EnrichmentOptions\x12%\n" +
+	"\x0einclude_signer\x18\x01 \x01(\bR\rincludeSigner\"&\n" +
 	"\fFilterValues\x12\x16\n" +
 	"\x06values\x18\x01 \x03(\tR\x06values\"$\n" +
 	"\x04Ping\x12\x1c\n" +
@@ -728,11 +831,14 @@ const file_hyperliquid_proto_rawDesc = "" +
 	"\x0fSubscribeUpdate\x121\n" +
 	"\x04data\x18\x01 \x01(\v2\x1b.hyperliquid.StreamResponseH\x00R\x04data\x12'\n" +
 	"\x04pong\x18\x02 \x01(\v2\x11.hyperliquid.PongH\x00R\x04pongB\b\n" +
-	"\x06update\"e\n" +
+	"\x06update\"\xc8\x01\n" +
 	"\x0eStreamResponse\x12!\n" +
 	"\fblock_number\x18\x01 \x01(\x04R\vblockNumber\x12\x1c\n" +
 	"\ttimestamp\x18\x02 \x01(\x04R\ttimestamp\x12\x12\n" +
-	"\x04data\x18\x03 \x01(\tR\x04data\"$\n" +
+	"\x04data\x18\x03 \x01(\tR\x04data\x128\n" +
+	"\vstream_type\x18\x04 \x01(\x0e2\x17.hyperliquid.StreamTypeR\n" +
+	"streamType\x12'\n" +
+	"\x0fsubscription_id\x18\x05 \x01(\tR\x0esubscriptionId\"$\n" +
 	"\x05Block\x12\x1b\n" +
 	"\tdata_json\x18\x01 \x01(\tR\bdataJson\"$\n" +
 	"\x04Pong\x12\x1c\n" +
@@ -781,41 +887,44 @@ func file_hyperliquid_proto_rawDescGZIP() []byte {
 }
 
 var file_hyperliquid_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_hyperliquid_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_hyperliquid_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_hyperliquid_proto_goTypes = []any{
-	(StreamType)(0),          // 0: hyperliquid.StreamType
-	(*SubscribeRequest)(nil), // 1: hyperliquid.SubscribeRequest
-	(*StreamSubscribe)(nil),  // 2: hyperliquid.StreamSubscribe
-	(*FilterValues)(nil),     // 3: hyperliquid.FilterValues
-	(*Ping)(nil),             // 4: hyperliquid.Ping
-	(*SubscribeUpdate)(nil),  // 5: hyperliquid.SubscribeUpdate
-	(*StreamResponse)(nil),   // 6: hyperliquid.StreamResponse
-	(*Block)(nil),            // 7: hyperliquid.Block
-	(*Pong)(nil),             // 8: hyperliquid.Pong
-	(*Timestamp)(nil),        // 9: hyperliquid.Timestamp
-	(*PingRequest)(nil),      // 10: hyperliquid.PingRequest
-	(*PingResponse)(nil),     // 11: hyperliquid.PingResponse
-	nil,                      // 12: hyperliquid.StreamSubscribe.FiltersEntry
+	(StreamType)(0),           // 0: hyperliquid.StreamType
+	(*SubscribeRequest)(nil),  // 1: hyperliquid.SubscribeRequest
+	(*StreamSubscribe)(nil),   // 2: hyperliquid.StreamSubscribe
+	(*EnrichmentOptions)(nil), // 3: hyperliquid.EnrichmentOptions
+	(*FilterValues)(nil),      // 4: hyperliquid.FilterValues
+	(*Ping)(nil),              // 5: hyperliquid.Ping
+	(*SubscribeUpdate)(nil),   // 6: hyperliquid.SubscribeUpdate
+	(*StreamResponse)(nil),    // 7: hyperliquid.StreamResponse
+	(*Block)(nil),             // 8: hyperliquid.Block
+	(*Pong)(nil),              // 9: hyperliquid.Pong
+	(*Timestamp)(nil),         // 10: hyperliquid.Timestamp
+	(*PingRequest)(nil),       // 11: hyperliquid.PingRequest
+	(*PingResponse)(nil),      // 12: hyperliquid.PingResponse
+	nil,                       // 13: hyperliquid.StreamSubscribe.FiltersEntry
 }
 var file_hyperliquid_proto_depIdxs = []int32{
 	2,  // 0: hyperliquid.SubscribeRequest.subscribe:type_name -> hyperliquid.StreamSubscribe
-	4,  // 1: hyperliquid.SubscribeRequest.ping:type_name -> hyperliquid.Ping
+	5,  // 1: hyperliquid.SubscribeRequest.ping:type_name -> hyperliquid.Ping
 	0,  // 2: hyperliquid.StreamSubscribe.stream_type:type_name -> hyperliquid.StreamType
-	12, // 3: hyperliquid.StreamSubscribe.filters:type_name -> hyperliquid.StreamSubscribe.FiltersEntry
-	6,  // 4: hyperliquid.SubscribeUpdate.data:type_name -> hyperliquid.StreamResponse
-	8,  // 5: hyperliquid.SubscribeUpdate.pong:type_name -> hyperliquid.Pong
-	3,  // 6: hyperliquid.StreamSubscribe.FiltersEntry.value:type_name -> hyperliquid.FilterValues
-	1,  // 7: hyperliquid.Streaming.StreamData:input_type -> hyperliquid.SubscribeRequest
-	10, // 8: hyperliquid.Streaming.Ping:input_type -> hyperliquid.PingRequest
-	9,  // 9: hyperliquid.BlockStreaming.StreamBlocks:input_type -> hyperliquid.Timestamp
-	5,  // 10: hyperliquid.Streaming.StreamData:output_type -> hyperliquid.SubscribeUpdate
-	11, // 11: hyperliquid.Streaming.Ping:output_type -> hyperliquid.PingResponse
-	7,  // 12: hyperliquid.BlockStreaming.StreamBlocks:output_type -> hyperliquid.Block
-	10, // [10:13] is the sub-list for method output_type
-	7,  // [7:10] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	13, // 3: hyperliquid.StreamSubscribe.filters:type_name -> hyperliquid.StreamSubscribe.FiltersEntry
+	3,  // 4: hyperliquid.StreamSubscribe.enrichment:type_name -> hyperliquid.EnrichmentOptions
+	7,  // 5: hyperliquid.SubscribeUpdate.data:type_name -> hyperliquid.StreamResponse
+	9,  // 6: hyperliquid.SubscribeUpdate.pong:type_name -> hyperliquid.Pong
+	0,  // 7: hyperliquid.StreamResponse.stream_type:type_name -> hyperliquid.StreamType
+	4,  // 8: hyperliquid.StreamSubscribe.FiltersEntry.value:type_name -> hyperliquid.FilterValues
+	1,  // 9: hyperliquid.Streaming.StreamData:input_type -> hyperliquid.SubscribeRequest
+	11, // 10: hyperliquid.Streaming.Ping:input_type -> hyperliquid.PingRequest
+	10, // 11: hyperliquid.BlockStreaming.StreamBlocks:input_type -> hyperliquid.Timestamp
+	6,  // 12: hyperliquid.Streaming.StreamData:output_type -> hyperliquid.SubscribeUpdate
+	12, // 13: hyperliquid.Streaming.Ping:output_type -> hyperliquid.PingResponse
+	8,  // 14: hyperliquid.BlockStreaming.StreamBlocks:output_type -> hyperliquid.Block
+	12, // [12:15] is the sub-list for method output_type
+	9,  // [9:12] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_hyperliquid_proto_init() }
@@ -827,7 +936,7 @@ func file_hyperliquid_proto_init() {
 		(*SubscribeRequest_Subscribe)(nil),
 		(*SubscribeRequest_Ping)(nil),
 	}
-	file_hyperliquid_proto_msgTypes[4].OneofWrappers = []any{
+	file_hyperliquid_proto_msgTypes[5].OneofWrappers = []any{
 		(*SubscribeUpdate_Data)(nil),
 		(*SubscribeUpdate_Pong)(nil),
 	}
@@ -837,7 +946,7 @@ func file_hyperliquid_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_hyperliquid_proto_rawDesc), len(file_hyperliquid_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   12,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   2,
 		},
