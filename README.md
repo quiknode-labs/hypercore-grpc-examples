@@ -132,6 +132,34 @@ The filter spans `order`, `cancel`, `cancelByCloid`, `batchModify`, `modify`,
 for semantics, visible 30-second Ping/Pong heartbeats, non-matching controls,
 raw output, and unit-test commands.
 
+## HIP-4 Outcome Markets
+
+HIP-4 outcome markets trade on `#N` coins grouped into venues that churn as
+outcomes settle. Three features make them practical to stream: reserved
+`venue`/`deployer` filter keys (server-side expansion to the venue's live coin
+set), `subscription_id` echo + populated `stream_type` on every update
+(disambiguates multiplexed subscriptions), and opt-in signer enrichment
+(`enrichment.include_signer` adds the submitting wallet to each ORDERS/TRADES
+event). Each language has a `hip4VenueExample` combining all three:
+
+```bash
+# JavaScript
+node javascript/hip4VenueExample/hip4_venue_example.js
+
+# Python
+python3 python/hip4VenueExample/hip4_venue_example.py
+
+# Go
+(cd golang && go run ./hip4VenueExample)
+
+# Rust
+(cd rust && cargo run --bin hip4_venue_example)
+```
+
+See [HIP-4 Outcome Markets](docs/hip4-outcome-markets.md) for venue discovery
+via `outcomeMeta`, filter semantics, signer-null cases, and the historical
+`hl_getSigner` JSON-RPC companion.
+
 ## Filtering
 
 Each language includes a dedicated `filter_example` file demonstrating server-side filtering.

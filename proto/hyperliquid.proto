@@ -30,11 +30,35 @@ message StreamSubscribe {
   // Generic filters - field name to allowed values
   // Recursively searches each event for matching field/value pairs
   // Example: {"coin": ["ETH", "BTC"], "user": ["0x123..."], "type": ["deposit"]}
+  //
+  // Reserved server-resolved keys (not matched against event JSON):
+  //   "venue"/"deployer": select all markets of a HIP-4 outcome venue or
+  //   HIP-3 dex by its name, or by its deployer address. Expanded to the
+  //   venue's coin set server-side; unknown venues match nothing.
   map<string, FilterValues> filters = 3;
 
   // Optional name for this filter
   // Allows multiple independent filters per stream (OR logic)
   string filter_name = 4;
+
+  // Opt-in payload enrichment for this stream type (TRADES/ORDERS only).
+  // One setting per (connection, stream type); the latest accepted subscribe
+  // wins. Requires signer enrichment to be enabled on the server.
+  EnrichmentOptions enrichment = 5;
+
+  // Optional client-chosen tag echoed on every update for this stream type.
+  // One tag per (connection, stream type); the latest subscribe wins.
+  string subscription_id = 6;
+}
+
+// Server-side enrichment of event payloads.
+message EnrichmentOptions {
+  // Add "signer": the wallet that actually SUBMITTED the order (the master
+  // itself, or the approved API/agent wallet that signed on its behalf),
+  // recovered from the action's signature. Events with no originating signed
+  // transaction (trigger fires, liquidations, TWAP children) carry
+  // "signer": null. Payloads are re-serialized when enrichment is on.
+  bool include_signer = 1;
 }
 
 // Container for filter values
@@ -56,9 +80,17 @@ message SubscribeUpdate {
 message StreamResponse {
   uint64 block_number = 1;
   uint64 timestamp = 2; // Server ingress timestamp
-  
+
   // Raw JSON data from the file (Exact replica of source)
   string data = 3;
+
+  // Which subscription this update belongs to. Always populated by servers
+  // that support it; UNKNOWN when the server predates this field.
+  StreamType stream_type = 4;
+
+  // Echo of StreamSubscribe.subscription_id for this stream type. Empty when
+  // the client did not set one or the server predates this field.
+  string subscription_id = 5;
 }
 
 // --- Data Types ---
