@@ -8,7 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.24.0
 	github.com/aws/aws-sdk-go-v2/config v1.26.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.47.0
-	github.com/klauspost/compress v1.17.4
+	github.com/klauspost/compress v1.18.7
 	google.golang.org/grpc v1.79.2
 	google.golang.org/protobuf v1.36.11
 )
